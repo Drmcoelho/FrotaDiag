@@ -1,7 +1,7 @@
 #!/usr/bin/env zsh
 # ============================================================================
 #  frotadiag.sh · Ecossistema Coelho — diagnóstico canônico único
-#  Operador: Dr. Matheus M. Coelho · rev 2.1 · jul 2026
+#  Operador: Dr. Matheus M. Coelho · rev 2.2 · jul 2026
 # ----------------------------------------------------------------------------
 #  Um script, um repositório (drmcoelho/FrotaDiag), roda idêntico em
 #  qualquer Mac. Substitui frota-diag.sh + disk-triage.sh + zshrc-audit.sh.
