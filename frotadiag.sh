@@ -1,7 +1,7 @@
 #!/usr/bin/env zsh
 # ============================================================================
 #  frotadiag.sh · Ecossistema Coelho — diagnóstico canônico único
-#  Operador: Dr. Matheus M. Coelho · rev 2.2 · jul 2026
+#  Operador: Dr. Matheus M. Coelho · rev 2.4 · jul 2026
 # ----------------------------------------------------------------------------
 #  Um script, um repositório (drmcoelho/FrotaDiag), roda idêntico em
 #  qualquer Mac. Substitui frota-diag.sh + disk-triage.sh + zshrc-audit.sh.
@@ -26,7 +26,68 @@
 
 umask 022
 
-SCRIPT_VERSION="2.2"
+SCRIPT_VERSION="2.4"
+# CHANGELOG 2.3→2.4 (achado real: duas máquinas físicas, mesmo $HOST):
+#  1. LocalHostName não é identidade de hardware — sobrevive a clone via
+#     Migration Assistant/restauração de TM se ninguém renomeia depois.
+#     Duas máquinas físicas distintas relatando o mesmo $HOST escreviam
+#     na MESMA pasta de saída, sem aviso, cada `all` sobrescrevendo o
+#     latest.json/latest.md do outro. Corrigido: pasta de saída agora usa
+#     HOST_ID = "${HOST}_${SERIAL}" (serial via `ioreg`, rápido, sem sudo,
+#     gravado na placa lógica — não clona). ATENÇÃO: isso muda o nome da
+#     pasta de saída — relatórios antigos em .../FrotaDiag/<HOST-puro>/
+#     ficam onde estavam; a primeira rodada de cada Mac na v2.4 cria uma
+#     pasta NOVA com o sufixo. É proposital: a pasta antiga tinha
+#     proveniência ambígua (podia ser mistura de duas máquinas).
+#  2. Serial nunca era capturado no diag — campo próprio adicionado em
+#     layer_identidade (útil por si só: lookup AppleCare, inventário).
+#  3. JSON ganhou "host_id" explícito ao lado de "host", para qualquer
+#     coletor futuro (fase 2) ter chave de máquina inequívoca mesmo se
+#     dois Macs um dia voltarem a compartilhar LocalHostName.
+# CHANGELOG 2.2→2.3 (achados de dados reais — primeiro censo de máquina real):
+#  1. scan_zsh_file: source com espaço no caminho (ex.: ~/Library/Mobile
+#     Documents/...) era truncado pelo segundo sed (corta no 1º espaço),
+#     mesmo já dentro de aspas — a normalização de aspas do v2.1 nunca
+#     chegava a rodar porque o path já vinha cortado antes. Corrigido:
+#     parsing quote-aware (trunca na aspas de fechamento, não no espaço).
+#  2. Secret matching por nome não distinguia flag booleana de segredo
+#     real: "ZSH_DISABLE_SECRETS_PROMPTS=1" batia SECRET_RE só por conter
+#     a palavra "SECRETS" num nome de feature-flag. Adicionado: se o nome
+#     bate mas o valor é booleano-shaped (0/1/true/false/yes/no/on/off),
+#     classifica como "flag de config (provável, não segredo)" e MOSTRA
+#     o valor — booleano não é sensível, e a distinção evita alarme falso.
+#  3. Hit de "segredo (linha)" (sem nome de variável extraível) não
+#     registrava número da linha — impossível auditar/confirmar sem abrir
+#     o arquivo e caçar manualmente. Adicionado número de linha no relatório
+#     mesmo com o valor redigido — auditável sem reexpor conteúdo.
+#  [3ª revisão, antes do 1º commit da 2.3 — 4 procedem, 1 verificado e
+#   corrigido de forma diferente da sugerida, 1 adiado por decisão]
+#  4. cmd_disk_scan sugeria "./frotadiag.sh disk clean" fixo — errado se o
+#     arquivo estivesse salvo com outro nome (already aconteceu nesta
+#     mesma sessão). Sugestão do reviewer era usar $0 puro; TESTADO e
+#     descartado: em zsh, $0 DENTRO DE FUNÇÃO reflete o nome da FUNÇÃO,
+#     não do script (diferente de bash) — teria piorado, não corrigido.
+#     Fix real: SCRIPT_SELF="$0" capturado no top-level (fora de qualquer
+#     função, onde $0 ainda é a invocação verdadeira), referenciado depois.
+#  5. Cabeçalho ainda dizia "rev 2.1" enquanto SCRIPT_VERSION já ia em
+#     "2.3" — resíduo de o sandbox nunca ter sincronizado de volta o fix
+#     pontual que o Claude Code aplicou direto no Mac. Corrigido pra 2.3.
+#  6. Changelog 2.1→2.2 descrevia `|| print 0` como a blindagem aplicada,
+#     mas o código real usa `${var:-0}` (trocado no mesmo ciclo, ao achar
+#     que `|| print 0` duplicava o zero quando grep -c já emite "0"
+#     sozinho). Texto do changelog corrigido pra bater com o código.
+#  7. SECRET_RE (nome) virou case-insensitive (-qiE) — "openai_api_key"
+#     minúsculo não batia antes. SECRET_VAL_RE (formato do valor) ficou
+#     como estava: os prefixos reais (sk-, ghp_, hf_, AKIA) são fixos por
+#     especificação de cada provedor, então case-insensitive ali só
+#     aumentaria falso-positivo sem detectar formato nenhum a mais.
+#  [ADIADO, aceito como gap conhecido] source com espaço ESCAPADO sem
+#     aspas (`source ~/Library/Mobile\ Documents/x.zsh`) ainda trunca —
+#     só o caminho ENTRE ASPAS foi corrigido. Convenção observada até
+#     agora usa sempre aspas nesse caso; resolver isso exigiria parsing
+#     char-a-char pra achar o 1º espaço NÃO-escapado, o que é mais
+#     complexo do que o gap observado justifica agora. Revisitar se
+#     aparecer em dado real.
 # CHANGELOG 2.1→2.2 (segunda revisão externa):
 #  1. [DISCORDÂNCIA REGISTRADA] Reviewer apontou contradição entre o comentário
 #     "disk clean NUNCA herda --yes" e o código, que de fato bypassa SEGURO.
@@ -39,8 +100,11 @@ SCRIPT_VERSION="2.2"
 #     não se sustenta — toda layer_*/scan_zsh_file termina em `return 0`
 #     explícito, que isola o exit code intermediário. O risco real e mais
 #     estreito é arquivo existente porém ILEGÍVEL (permissão), onde grep
-#     em alguma variante de shell pode não emitir nem "0". `|| print 0`
-#     é blindagem barata para esse caso; aplicado nos 4 pontos sem fallback.
+#     em alguma variante de shell pode não emitir nem "0". `${var:-0}`
+#     após a atribuição é a blindagem usada (não `|| print 0` — essa opção
+#     foi tentada primeiro e descartada no mesmo ciclo por duplicar o zero
+#     quando grep -c já emite "0" sozinho em caso de zero matches);
+#     aplicado nos 6 pontos que fazem grep -c no arquivo.
 #  3. redact(): removida também a contagem de caracteres — nome da variável
 #     já discrimina o tipo do segredo; comprimento exato era metadado
 #     supérfluo e podia ajudar fingerprint do provedor.
@@ -60,12 +124,21 @@ SCRIPT_VERSION="2.2"
 #     não-zero (1/2 por design) numa composição futura com set -e.
 emulate -L zsh
 setopt pipefail null_glob
+SCRIPT_SELF="$0"  # capturado no top-level: dentro de função, $0 vira o nome
+                   # da FUNÇÃO em zsh (não do script) — testado e confirmado.
+                   # É esta variável, não $0 puro, que as dicas usam depois.
 HOST="$(scutil --get LocalHostName 2>/dev/null || hostname -s)"
+# LocalHostName é nome de REDE, não identidade de hardware — sobrevive a
+# clone via Migration Assistant/restauração de TM se ninguém renomeia depois.
+# Duas máquinas físicas distintas podem reportar o mesmo $HOST e colidir
+# na mesma pasta de saída. SERIAL é gravado na placa lógica, não clona.
+SERIAL="$(ioreg -l 2>/dev/null | awk -F'"' '/IOPlatformSerialNumber/{print $4; exit}')"
+HOST_ID="${HOST}${SERIAL:+_$SERIAL}"  # sem ioreg (não-macOS/erro) cai só no HOST
 TS="$(date +%Y%m%d_%H%M%S)"
 TS_ISO="$(date +%Y-%m-%dT%H:%M:%S%z)"
 
 ICLOUD_BASE="$HOME/Library/Mobile Documents/com~apple~CloudDocs/FrotaDiag"
-OUT_DIR="$ICLOUD_BASE/$HOST"
+OUT_DIR="$ICLOUD_BASE/$HOST_ID"
 STATE_DIR="$HOME/.local/state/frotadiag"
 LOG_FILE="$STATE_DIR/frotadiag.log"
 mkdir -p "$STATE_DIR"
@@ -142,6 +215,7 @@ layer_identidade() {
   emit INFO modelo "$model"           "modelo"
   emit INFO chip   "$chip"            "chip"
   emit INFO macos  "$osver ($build)"  "macOS"
+  emit INFO serial "${SERIAL:-indisponivel}" "número de série"
 
   local boot now up_s up_d
   boot="$(sysctl -n kern.boottime 2>/dev/null | sed 's/.*{ sec = \([0-9]*\),.*/\1/')"
@@ -372,6 +446,7 @@ write_diag_reports() {
     print -r -- "{"
     print -r -- "  \"schema\": \"frotadiag/v2\","
     print -r -- "  \"host\": \"$(json_escape "$HOST")\","
+    print -r -- "  \"host_id\": \"$(json_escape "$HOST_ID")\","
     print -r -- "  \"timestamp\": \"$TS_ISO\","
     print -r -- "  \"script_version\": \"$SCRIPT_VERSION\","
     print -r -- "  \"resumo\": {\"ok\": $N_OK, \"warn\": $N_WARN, \"bad\": $N_BAD},"
@@ -493,7 +568,7 @@ cmd_disk_scan() {
     fi
   done
   print -- "\n  ${C_B}Recuperável somando tudo: ~$(human_bytes $total)${C_0}"
-  print -- "\nPróximo passo: ${C_B}./frotadiag.sh disk clean${C_0}"
+  print -- "\nPróximo passo: ${C_B}$SCRIPT_SELF disk clean${C_0}"
 }
 
 confirm() { local ans; read -r "ans?  → $1 [s/N] "; [[ "$ans" == [sSyY]* ]]; }
@@ -579,16 +654,24 @@ scan_zsh_file() {
   lines=$(wc -l < "$f" | tr -d ' ')
   mtime=$(stat -f '%Sm' -t '%Y-%m-%d' "$f" 2>/dev/null)
   ZMD+=("" "#### \`${f/#$HOME/~}\` — $lines linhas · modificado $mtime" "")
-  local hits=0
+  local hits=0 lineno=0
   while IFS= read -r ln; do
-    if print -r -- "$ln" | grep -qE "$SECRET_RE" || print -r -- "$ln" | grep -qE "$SECRET_VAL_RE"; then
+    (( lineno++ ))
+    if print -r -- "$ln" | grep -qiE "$SECRET_RE" || print -r -- "$ln" | grep -qE "$SECRET_VAL_RE"; then
       (( hits++ ))
       name="$(print -r -- "$ln" | sed -nE 's/^[[:space:]]*(export[[:space:]]+)?([A-Za-z_][A-Za-z0-9_]*)=.*/\2/p')"
       if [[ -n "$name" ]]; then
         val="$(print -r -- "$ln" | sed -E 's/^[^=]*=//; s/^["'"'"']//; s/["'"'"'][[:space:]]*$//')"
-        ZMD+=("- 🔑 **segredo**: \`$name\` = \`$(redact "$val")\`")
+        # valor booleano-shaped em nome que bateu por conter "SECRET/TOKEN/..."
+        # como substring de um FLAG (ex.: ZSH_DISABLE_SECRETS_PROMPTS=1) não é
+        # segredo — é config. Mostra o valor real, não redige.
+        if [[ "${(L)val}" == (0|1|true|false|yes|no|on|off) ]]; then
+          ZMD+=("- 🚩 **flag de config** (linha $lineno, provável não-segredo): \`$name\` = \`$val\`")
+        else
+          ZMD+=("- 🔑 **segredo** (linha $lineno): \`$name\` = \`$(redact "$val")\`")
+        fi
       else
-        ZMD+=("- 🔑 **segredo (linha)**: \`$(redact "$ln")\`")
+        ZMD+=("- 🔑 **segredo (linha $lineno)**: \`$(redact "$ln")\`")
       fi
     fi
   done < "$f"
@@ -610,10 +693,14 @@ scan_zsh_file() {
 
   if (( depth < 1 )); then
     grep -E '^[[:space:]]*(source|\.)[[:space:]]' "$f" 2>/dev/null \
-      | sed -E 's/^[[:space:]]*(source|\.)[[:space:]]+//; s/[[:space:]].*$//' \
-      | while IFS= read -r src; do
-          src="${src#\"}"; src="${src%\"}"
-          src="${src#\'}"; src="${src%\'}"
+      | sed -E 's/^[[:space:]]*(source|\.)[[:space:]]+//' \
+      | while IFS= read -r rawsrc; do
+          local src
+          case "$rawsrc" in
+            \"*) src="${rawsrc#\"}"; src="${src%%\"*}" ;;   # até a aspa DUPLA de fechamento
+            \'*) src="${rawsrc#\'}"; src="${src%%\'*}" ;;   # até a aspa SIMPLES de fechamento
+            *)   src="${rawsrc%%[[:space:]]*}" ;;           # sem aspas: 1º espaço é o fim mesmo
+          esac
           src="${src/#\~/$HOME}"; src="${src//\$HOME/$HOME}"
           src="${src//\$\{HOME\}/$HOME}"
           ZMD+=("- ↳ **source**: \`${src/#$HOME/~}\`")
