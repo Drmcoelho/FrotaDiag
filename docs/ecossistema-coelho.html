@@ -1,0 +1,723 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ecossistema Coelho — Manual de Operações v1.0</title>
+<style>
+:root{
+  --paper:#EDF1F4;
+  --paper-2:#E2E8ED;
+  --grid:rgba(30,78,121,.08);
+  --ink:#14212B;
+  --ink-2:#3D4F5C;
+  --blue:#1E4E79;
+  --blue-2:#2E6DA3;
+  --red:#B3261E;
+  --green:#0E7C5B;
+  --amber:#9A6A00;
+  --term-bg:#141F28;
+  --term-ink:#D7E3EC;
+  --term-green:#7BD8A8;
+  --term-amber:#F2C879;
+  --radius:6px;
+  --mono:ui-monospace,"SF Mono",SFMono-Regular,Menlo,monospace;
+  --disp:"AvenirNextCondensed-DemiBold","Avenir Next Condensed","Arial Narrow",-apple-system,sans-serif;
+  --body:-apple-system,BlinkMacSystemFont,"Helvetica Neue",Arial,sans-serif;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth;scroll-padding-top:64px}
+body{
+  background:var(--paper);
+  background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);
+  background-size:28px 28px;
+  color:var(--ink);
+  font-family:var(--body);
+  font-size:16px;line-height:1.62;
+}
+@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}*{transition:none!important;animation:none!important}}
+
+/* ---------- top bar ---------- */
+.topbar{
+  position:sticky;top:0;z-index:50;
+  background:var(--ink);color:#E8EEF3;
+  display:flex;align-items:center;gap:14px;
+  padding:10px 18px;font-family:var(--mono);font-size:12.5px;
+}
+.topbar .id{color:var(--term-amber);letter-spacing:.08em}
+.topbar .prog{margin-left:auto;display:flex;align-items:center;gap:8px;white-space:nowrap}
+.progbar{width:110px;height:6px;background:#2A3944;border-radius:3px;overflow:hidden}
+.progbar>i{display:block;height:100%;width:0%;background:var(--term-green);transition:width .3s}
+@media(max-width:520px){.topbar span:nth-child(2){display:none}.topbar{font-size:11.5px}}
+
+/* ---------- shell ---------- */
+.wrap{max-width:980px;margin:0 auto;padding:0 20px 90px}
+header.hero{padding:52px 0 8px}
+.eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--blue);border-left:3px solid var(--blue);padding-left:10px}
+h1{font-family:var(--disp);font-weight:700;font-size:clamp(38px,7vw,64px);line-height:.98;text-transform:uppercase;letter-spacing:.01em;margin:14px 0 10px}
+h1 .rev{color:var(--blue)}
+.hero p.sub{max-width:640px;color:var(--ink-2);font-size:17px}
+.hero .meta{font-family:var(--mono);font-size:12px;color:var(--ink-2);margin-top:14px;display:flex;gap:18px;flex-wrap:wrap}
+.hero .meta b{color:var(--ink)}
+
+/* ---------- section frame ---------- */
+section{margin-top:64px}
+.sechead{display:flex;align-items:baseline;gap:14px;border-bottom:2px solid var(--ink);padding-bottom:8px;margin-bottom:22px}
+.sechead .num{font-family:var(--mono);font-size:13px;color:var(--blue);letter-spacing:.1em}
+.sechead h2{font-family:var(--disp);font-weight:700;text-transform:uppercase;font-size:clamp(24px,4vw,34px);letter-spacing:.015em}
+h3{font-family:var(--disp);text-transform:uppercase;letter-spacing:.03em;font-size:20px;margin:30px 0 8px;color:var(--blue)}
+h4{font-size:16px;margin:20px 0 6px}
+p{margin:10px 0;max-width:74ch}
+p.lead{font-size:17.5px;color:var(--ink)}
+strong{color:var(--ink)}
+em{font-style:italic}
+ul,ol{margin:10px 0 10px 22px;max-width:74ch}
+li{margin:5px 0}
+a{color:var(--blue-2)}
+hr.dash{border:0;border-top:1px dashed var(--blue-2);opacity:.5;margin:26px 0}
+
+/* ---------- callouts ---------- */
+.note,.warn,.gold{border-radius:var(--radius);padding:13px 16px;margin:16px 0;font-size:15px;border-left:4px solid;max-width:78ch}
+.note{background:#E4ECF3;border-color:var(--blue)}
+.warn{background:#F5E3E1;border-color:var(--red)}
+.gold{background:#F3ECD9;border-color:var(--amber)}
+.note b,.warn b,.gold b{font-family:var(--mono);font-size:11.5px;letter-spacing:.1em;text-transform:uppercase;display:block;margin-bottom:4px}
+.note b{color:var(--blue)}.warn b{color:var(--red)}.gold b{color:var(--amber)}
+
+/* ---------- terminal blocks ---------- */
+.term{background:var(--term-bg);color:var(--term-ink);border-radius:var(--radius);margin:16px 0;overflow:hidden;box-shadow:0 2px 10px rgba(20,33,43,.25)}
+.term .bar{display:flex;align-items:center;gap:8px;background:#0E161D;padding:7px 12px;font-family:var(--mono);font-size:11.5px;color:#8FA3B0}
+.term .bar .dot{width:9px;height:9px;border-radius:50%;background:#33454F}
+.term .bar .lbl{margin-left:2px}
+.term .bar button{margin-left:auto;background:#22313C;color:var(--term-ink);border:0;border-radius:4px;font-family:var(--mono);font-size:11px;padding:3px 10px;cursor:pointer}
+.term .bar button:focus-visible{outline:2px solid var(--term-green)}
+.term pre{padding:13px 15px;overflow-x:auto;font-family:var(--mono);font-size:13.2px;line-height:1.55}
+.term .c{color:#6E8593}
+.term .g{color:var(--term-green)}
+.term .y{color:var(--term-amber)}
+code{font-family:var(--mono);font-size:.88em;background:#DCE4EA;border-radius:4px;padding:1px 5px;color:var(--ink)}
+kbd{font-family:var(--mono);font-size:.82em;background:#fff;border:1px solid #B9C6D0;border-bottom-width:2px;border-radius:4px;padding:1px 6px}
+
+/* ---------- device cards ---------- */
+.dev{background:#fff;border:1px solid #C9D4DC;border-radius:var(--radius);margin:22px 0;overflow:hidden}
+.dev .head{display:flex;align-items:center;gap:12px;padding:12px 16px;background:linear-gradient(180deg,#F6F9FB,#ECF1F5);border-bottom:1px solid #C9D4DC}
+.dev .head .tag{font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;background:var(--blue);color:#fff;border-radius:3px;padding:2px 8px}
+.dev .head .tag.aux{background:var(--ink-2)}
+.dev .head h3{margin:0;font-size:19px;color:var(--ink)}
+.dev .head .role{margin-left:auto;font-family:var(--mono);font-size:12px;color:var(--blue);text-align:right}
+.dev .body{padding:6px 16px 16px}
+@media(max-width:600px){.dev .head{flex-wrap:wrap}.dev .head .role{margin-left:0;text-align:left;width:100%}}
+
+/* ---------- checklists ---------- */
+.check{list-style:none;margin:12px 0;padding:0;max-width:78ch}
+.check li{display:flex;gap:10px;align-items:flex-start;padding:7px 10px;border-radius:5px;margin:2px 0}
+.check li:hover{background:#E5ECF1}
+.check input{margin-top:4px;width:16px;height:16px;accent-color:var(--green);flex:none;cursor:pointer}
+.check label{cursor:pointer}
+.check li.done label{color:var(--ink-2);text-decoration:line-through;text-decoration-color:var(--green);text-decoration-thickness:1.5px}
+.check .t{font-family:var(--mono);font-size:11px;color:var(--amber);margin-left:6px;white-space:nowrap}
+
+/* ---------- tables ---------- */
+table{border-collapse:collapse;width:100%;margin:16px 0;font-size:14.5px;background:#fff}
+th,td{border:1px solid #C9D4DC;padding:8px 11px;text-align:left;vertical-align:top}
+th{font-family:var(--mono);font-size:11.5px;letter-spacing:.08em;text-transform:uppercase;background:var(--ink);color:#E8EEF3}
+tr:nth-child(even) td{background:#F4F7F9}
+@media(max-width:640px){table{display:block;overflow-x:auto;white-space:nowrap}}
+
+/* ---------- topology map ---------- */
+.mapbox{background:var(--ink);border-radius:var(--radius);padding:10px 8px 4px;margin:26px 0 6px;box-shadow:0 3px 14px rgba(20,33,43,.3)}
+.mapbox svg{width:100%;height:auto;display:block}
+.mapbox text{font-family:var(--mono)}
+.node{cursor:pointer}
+.node:hover .nbox{stroke:#F2C879;stroke-width:1.6}
+.nbox{fill:#1C2B36;stroke:#3E5566;stroke-width:1;rx:5}
+.nbox.core{fill:#1E4E79;stroke:#7BB2DD}
+.nlbl{fill:#D7E3EC;font-size:11px;font-weight:600}
+.nrole{fill:#8FA3B0;font-size:8.5px}
+.nrole.core{fill:#BBD7EE}
+.edge{stroke:#3E5566;stroke-width:1;stroke-dasharray:3 3}
+.edge.ts{stroke:#7BD8A8;stroke-dasharray:none;stroke-width:1.3}
+.maplegend{font-family:var(--mono);font-size:11px;color:var(--ink-2);display:flex;gap:20px;padding:6px 4px 20px;flex-wrap:wrap}
+.maplegend i{display:inline-block;width:18px;height:0;border-top:2px solid var(--green);vertical-align:middle;margin-right:5px}
+.maplegend i.d{border-top-style:dashed;border-color:#66808F}
+
+/* ---------- nav ---------- */
+nav.toc{background:#fff;border:1px solid #C9D4DC;border-radius:var(--radius);padding:16px 18px;margin:30px 0;column-count:2;column-gap:26px}
+nav.toc a{display:block;font-family:var(--mono);font-size:13px;color:var(--ink);text-decoration:none;padding:4px 0;border-bottom:1px dotted #C9D4DC}
+nav.toc a b{color:var(--blue);margin-right:8px}
+nav.toc a:hover{color:var(--blue)}
+@media(max-width:600px){nav.toc{column-count:1}}
+
+.footer{margin-top:70px;border-top:2px solid var(--ink);padding-top:14px;font-family:var(--mono);font-size:12px;color:var(--ink-2);display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px}
+.arch{font-family:var(--mono);font-size:12.8px;line-height:1.7;background:#fff;border:1px dashed var(--blue-2);border-radius:var(--radius);padding:14px 16px;overflow-x:auto;margin:16px 0;color:var(--ink)}
+</style>
+</head>
+<body>
+<div class="topbar" role="banner">
+  <span class="id">ECO-COELHO/OPS-01</span>
+  <span>rev 1.0 · jul 2026</span>
+  <span class="prog"><span id="progtxt">0/0 executado</span><span class="progbar"><i id="progfill"></i></span></span>
+</div>
+<div class="wrap">
+<header class="hero">
+  <div class="eyebrow">Manual de operações · doutrina, configuração e automação</div>
+  <h1>Ecossistema<br>Coelho <span class="rev">v1.0</span></h1>
+  <p class="sub">Nove dispositivos, um sistema. Cada máquina tem um papel primário, uma configuração canônica e uma função no fluxo — clínica, código, ensino, família. Este manual ensina ao fazer: cada seção termina em bloco executável, e o que você executa fica marcado.</p>
+  <div class="meta">
+    <span>operador: <b>Dr. Matheus M. Coelho</b></span>
+    <span>shell: <b>zsh · iTerm2</b></span>
+    <span>malha: <b>Tailscale</b></span>
+    <span>núcleo: <b>Mac mini M4</b></span>
+  </div>
+</header>
+
+<nav class="toc" aria-label="Sumário">
+  <a href="#s0"><b>00</b>Topologia e doutrina</a>
+  <a href="#s1"><b>01</b>Espinha dorsal: Tailscale + SSH</a>
+  <a href="#s2"><b>02</b>Fichas de dispositivo</a>
+  <a href="#s3"><b>03</b>Continuidade entre telas</a>
+  <a href="#s4"><b>04</b>Nuvem e arquivos</a>
+  <a href="#s5"><b>05</b>Terminal, Git e GitHub</a>
+  <a href="#s6"><b>06</b>Xcode e builds</a>
+  <a href="#s7"><b>07</b>Automação em três camadas</a>
+  <a href="#s8"><b>08</b>LLM Matheus</a>
+  <a href="#s9"><b>09</b>Segredos e truques</a>
+  <a href="#s10"><b>10</b>Acessórios</a>
+  <a href="#s11"><b>11</b>Checklist Dia 1 — terça</a>
+</nav>
+
+<!-- ========== 00 TOPOLOGIA ========== -->
+<section id="s0">
+  <div class="sechead"><span class="num">SEÇÃO 00</span><h2>Topologia e doutrina</h2></div>
+  <p class="lead">A regra que organiza tudo: <strong>um papel primário por dispositivo</strong>. Sem papel definido, cada aparelho vira uma cópia parcial dos outros — sincronização redundante, bateria gasta, atenção fragmentada. Com papel definido, o ecossistema funciona como um organismo: núcleo, periferia, órgãos de sentido.</p>
+
+  <div class="mapbox" role="img" aria-label="Mapa de topologia dos nove dispositivos">
+  <svg viewBox="0 0 720 340" xmlns="http://www.w3.org/2000/svg">
+    <!-- edges tailscale (solid green) -->
+    <line class="edge ts" x1="360" y1="170" x2="150" y2="60"/>
+    <line class="edge ts" x1="360" y1="170" x2="360" y2="52"/>
+    <line class="edge ts" x1="360" y1="170" x2="570" y2="60"/>
+    <line class="edge ts" x1="360" y1="170" x2="150" y2="285"/>
+    <!-- edges continuity (dashed) -->
+    <line class="edge" x1="360" y1="170" x2="570" y2="285"/>
+    <line class="edge" x1="360" y1="170" x2="360" y2="288"/>
+    <line class="edge" x1="570" y1="60" x2="570" y2="285"/>
+    <line class="edge" x1="150" y1="60" x2="150" y2="285"/>
+    <line class="edge" x1="570" y1="285" x2="655" y2="200"/>
+    <line class="edge" x1="570" y1="285" x2="655" y2="330"/>
+
+    <!-- core node -->
+    <g class="node" data-goto="dev-mini">
+      <rect class="nbox core" x="285" y="140" width="150" height="60" rx="6"/>
+      <text class="nlbl" x="360" y="165" text-anchor="middle">MAC MINI M4</text>
+      <text class="nrole core" x="360" y="182" text-anchor="middle">NÚCLEO · servidor 24/7</text>
+    </g>
+    <!-- satellites -->
+    <g class="node" data-goto="dev-air">
+      <rect class="nbox" x="80" y="32" width="140" height="52" rx="6"/>
+      <text class="nlbl" x="150" y="54" text-anchor="middle">MACBOOK AIR M5</text>
+      <text class="nrole" x="150" y="70" text-anchor="middle">dev móvel · Xcode</text>
+    </g>
+    <g class="node" data-goto="dev-ipadpro">
+      <rect class="nbox" x="290" y="14" width="140" height="52" rx="6"/>
+      <text class="nlbl" x="360" y="36" text-anchor="middle">IPAD PRO M5</text>
+      <text class="nrole" x="360" y="52" text-anchor="middle">cockpit · Pencil · SSH</text>
+    </g>
+    <g class="node" data-goto="dev-i17">
+      <rect class="nbox" x="500" y="32" width="140" height="52" rx="6"/>
+      <text class="nlbl" x="570" y="54" text-anchor="middle">IPHONE 17 PRO MAX</text>
+      <text class="nrole" x="570" y="70" text-anchor="middle">primário · captura</text>
+    </g>
+    <g class="node" data-goto="dev-imac">
+      <rect class="nbox" x="80" y="258" width="140" height="52" rx="6"/>
+      <text class="nlbl" x="150" y="280" text-anchor="middle">IMAC (LEGADO)</text>
+      <text class="nrole" x="150" y="296" text-anchor="middle">backup Time Machine</text>
+    </g>
+    <g class="node" data-goto="dev-ipadold">
+      <rect class="nbox" x="290" y="262" width="140" height="52" rx="6"/>
+      <text class="nlbl" x="360" y="284" text-anchor="middle">IPAD (ANTERIOR)</text>
+      <text class="nrole" x="360" y="300" text-anchor="middle">estação do pai · Sidecar</text>
+    </g>
+    <g class="node" data-goto="dev-i15">
+      <rect class="nbox" x="500" y="258" width="140" height="52" rx="6"/>
+      <text class="nlbl" x="570" y="280" text-anchor="middle">IPHONE 15 PRO MAX</text>
+      <text class="nrole" x="570" y="296" text-anchor="middle">rig de captação · teste</text>
+    </g>
+    <g class="node" data-goto="dev-watch">
+      <rect class="nbox" x="610" y="176" width="96" height="46" rx="6"/>
+      <text class="nlbl" x="658" y="196" text-anchor="middle">WATCH</text>
+      <text class="nrole" x="658" y="211" text-anchor="middle">pulso · Siri</text>
+    </g>
+    <g class="node" data-goto="dev-pods">
+      <rect class="nbox" x="610" y="306" width="96" height="30" rx="6"/>
+      <text class="nlbl" x="658" y="326" text-anchor="middle">AIRPODS 4</text>
+    </g>
+  </svg>
+  </div>
+  <div class="maplegend">
+    <span><i></i>malha Tailscale (SSH/serviços)</span>
+    <span><i class="d"></i>Continuidade (Handoff, AirDrop, Sidecar)</span>
+    <span>clique em um nó → ficha do dispositivo</span>
+  </div>
+
+  <h3>Doutrina em cinco linhas</h3>
+  <ol>
+    <li><strong>O Mac mini é o coração.</strong> Ligado 24/7, sem tela, sem teclado. Tudo que é pesado, persistente ou agendado roda nele: Claude Code, LLM local, RAG, builds, backups, LaunchAgents.</li>
+    <li><strong>Todo o resto é janela.</strong> iPad Pro, MacBook Air e iPhones acessam o núcleo via Tailscale. O poder computacional não viaja com você — o acesso a ele viaja.</li>
+    <li><strong>Trabalho ativo mora no iCloud; código mora no Git; backup mora no Drive.</strong> Três destinos, zero ambiguidade (Seção 04).</li>
+    <li><strong>Automação tem três camadas:</strong> Shortcuts (gesto/voz), Automator+Serviços (contexto no macOS), launchd (agendamento determinístico). Cada problema tem sua camada (Seção 07).</li>
+    <li><strong>Dispositivo sem papel vira gaveta digital.</strong> iPhone 15 e iPad anterior recebem funções dedicadas — não são "reservas".</li>
+  </ol>
+</section>
+
+<!-- ========== 01 ESPINHA ========== -->
+<section id="s1">
+  <div class="sechead"><span class="num">SEÇÃO 01</span><h2>Espinha dorsal: Tailscale + SSH</h2></div>
+  <p class="lead">Isto é o que transforma nove aparelhos em um sistema: uma malha privada onde cada dispositivo tem nome fixo e alcança os outros de qualquer rede — 4G no plantão, Wi-Fi do hospital, casa. Sem abrir porta no roteador, sem IP dinâmico, sem VPN comercial.</p>
+
+  <h3>1.1 · Mecanismo (por que Tailscale e não SSH puro)</h3>
+  <p>SSH direto exige IP alcançável → seu mini atrás de NAT da operadora não tem. Tailscale cria uma rede WireGuard ponto-a-ponto: cada dispositivo recebe IP <code>100.x.y.z</code> estável e nome MagicDNS (<code>macmini</code>, <code>ipadpro</code>). O tráfego é criptografado fim-a-fim e, na maioria das redes, flui direto entre os aparelhos sem passar por servidor intermediário. Resultado: <code>ssh macmini</code> funciona do UPA como funciona da sua sala.</p>
+
+  <h3>1.2 · No Mac mini (o servidor)</h3>
+  <ol class="check" data-group="spine">
+    <li><input type="checkbox" id="c1a"><label for="c1a">Ajustes do Sistema → Geral → Compartilhamento → ativar <strong>Sessão Remota</strong> (Remote Login) e <strong>Compartilhamento de Tela</strong></label></li>
+    <li><input type="checkbox" id="c1b"><label for="c1b">Energia: nunca dormir + religar após queda de energia (comando abaixo)</label></li>
+    <li><input type="checkbox" id="c1c"><label for="c1c">Instalar Tailscale e subir com SSH integrado</label></li>
+    <li><input type="checkbox" id="c1d"><label for="c1d">Instalar tmux e criar sessão persistente <code>nucleo</code></label></li>
+  </ol>
+
+  <div class="term"><div class="bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="lbl">zsh — mac mini</span><button data-copy>copiar</button></div>
+<pre><span class="c"># energia: servidor de verdade</span>
+sudo pmset -a sleep 0 disksleep 0 autorestart 1 womp 1
+
+<span class="c"># tailscale + tmux + mosh</span>
+brew install tailscale tmux mosh
+sudo brew services start tailscale
+tailscale up --ssh          <span class="c"># login via navegador, 1x só</span>
+
+<span class="c"># sessão persistente que sobrevive a desconexões</span>
+tmux new -s nucleo -d
+tailscale status            <span class="c"># anote o nome MagicDNS do mini</span></pre></div>
+
+  <div class="note"><b>Por que --ssh</b>O Tailscale SSH autentica pela identidade da malha — dispensa distribuir chave pública para cada cliente e ainda registra cada sessão. Chave ed25519 clássica continua válida como segunda via (bloco 1.4).</div>
+
+  <h3>1.3 · Nos clientes (iPad Pro, iPhones, MacBook Air)</h3>
+  <p>App Tailscale da App Store → mesmo login → pronto: o aparelho entra na malha. No iPad e iPhones, o terminal é o <strong>Blink Shell</strong> (mosh nativo, teclas remapeáveis, fonte SF Mono). No MacBook Air, iTerm2 como sempre.</p>
+
+  <div class="term"><div class="bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="lbl">blink — ipad pro</span><button data-copy>copiar</button></div>
+<pre><span class="c"># dentro do Blink: config &gt; hosts &gt; novo host</span>
+<span class="c">#   alias: mini | hostname: macmini | user: matheus</span>
+
+mosh macmini -- tmux attach -t nucleo
+<span class="c"># mosh sobrevive a troca Wi-Fi→4G sem derrubar a sessão;</span>
+<span class="c"># tmux garante que o que roda no mini não morre nunca.</span></pre></div>
+
+  <div class="gold"><b>O truque que ninguém usa</b>A dupla mosh+tmux é o que torna o iPad um laptop de verdade: você fecha a capa no meio de um <code>claude</code> rodando, abre 3 horas depois no hospital, e a sessão está exatamente onde parou — porque ela nunca esteve no iPad. O iPad é só a retina; o cérebro ficou em casa.</div>
+
+  <h3>1.4 · Chave ed25519 (segunda via de autenticação)</h3>
+  <div class="term"><div class="bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="lbl">zsh — macbook air</span><button data-copy>copiar</button></div>
+<pre>ssh-keygen -t ed25519 -C "matheus@ecossistema"
+ssh-copy-id matheus@macmini
+<span class="c"># teste:</span>
+ssh macmini "hostname && uptime"</pre></div>
+  <p>No Blink, gere a chave dentro do próprio app (Config → Keys → New ed25519) e cole a pública em <code>~/.ssh/authorized_keys</code> do mini. A privada nunca sai do Secure Enclave do iPad.</p>
+</section>
+<!-- ========== 02 FICHAS ========== -->
+<section id="s2">
+  <div class="sechead"><span class="num">SEÇÃO 02</span><h2>Fichas de dispositivo</h2></div>
+  <p class="lead">Nove fichas. Cada uma define papel, configuração canônica e o detalhe que ninguém aplica.</p>
+
+  <div class="dev" id="dev-mini">
+    <div class="head"><span class="tag">Núcleo</span><h3>Mac mini M4</h3><span class="role">servidor headless 24/7</span></div>
+    <div class="body">
+      <p><strong>Papel:</strong> tudo que precisa persistir. Claude Code em tmux, Ollama/MLX servindo o LLM Matheus (Seção 08), RAG ChromaDB, LaunchAgents (o despertador v3.0 já mora aqui), builds longos, sincronizações agendadas.</p>
+      <ul class="check" data-group="mini">
+        <li><input type="checkbox" id="m1"><label for="m1">Login automático ativado (Ajustes → Usuários) — sem isso, queda de energia deixa o mini parado na tela de senha e nada sobe</label></li>
+        <li><input type="checkbox" id="m2"><label for="m2">FileVault <strong>desligado</strong> neste caso específico: com FileVault, o disco só monta após senha física. Servidor headless doméstico → tradeoff consciente: disponibilidade &gt; criptografia em repouso. Compense com senha forte e Firewall ativo</label></li>
+        <li><input type="checkbox" id="m3"><label for="m3">Compartilhamento de Tela para manutenção visual rara — do iPad, app Screens ou o próprio Tailscale (<code>vnc://macmini</code> no Safari? não: use Screens/Jump Desktop)</label></li>
+        <li><input type="checkbox" id="m4"><label for="m4">SSD externo Thunderbolt dedicado a Time Machine local do próprio mini</label></li>
+      </ul>
+      <div class="gold"><b>Segredo</b><code>caffeinate -dimsu &</code> segura o mini acordado mesmo se alguém mexer nos ajustes de energia; e <kbd>⌃⌘Q</kbd> numa sessão de Compartilhamento de Tela bloqueia a tela remota sem derrubar seus processos.</div>
+    </div>
+  </div>
+
+  <div class="dev" id="dev-air">
+    <div class="head"><span class="tag">Satélite</span><h3>MacBook Air M5</h3><span class="role">desenvolvimento móvel · Xcode</span></div>
+    <div class="body">
+      <p><strong>Papel:</strong> a máquina de criação com tela própria. Xcode, edição pesada, escrita longa, sessões de Claude Code locais quando o trabalho é interativo. É também o console de administração do mini.</p>
+      <ul class="check" data-group="air">
+        <li><input type="checkbox" id="a1"><label for="a1">iTerm2 + zsh espelhando o dotfile do mini (um repositório <code>dotfiles</code> no GitHub, clonado nos dois — Seção 05)</label></li>
+        <li><input type="checkbox" id="a2"><label for="a2">Hot Corner inferior-direito = Mesa (desktop); superior-esquerdo = Tela bloqueada</label></li>
+        <li><input type="checkbox" id="a3"><label for="a3">Desbloqueio pelo Apple Watch ativado (Ajustes → Touch ID e Senha)</label></li>
+        <li><input type="checkbox" id="a4"><label for="a4">iPhone Mirroring configurado: o iPhone 17 aparece como janela no macOS — responder WhatsApp sem tirar a mão do teclado</label></li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="dev" id="dev-ipadpro">
+    <div class="head"><span class="tag">Satélite</span><h3>iPad Pro M5 13"</h3><span class="role">cockpit · Pencil Pro · terminal remoto</span></div>
+    <div class="body">
+      <p><strong>Papel:</strong> o dispositivo de fronteira — leitura profunda, anotação com Pencil, diagramas do Respira/Heuristicina, revisão de PDF jurídico e clínico, e <em>janela para o mini</em> via Blink. Com Magic Keyboard, substitui o laptop em 80% das saídas.</p>
+      <ul class="check" data-group="ipro">
+        <li><input type="checkbox" id="p1"><label for="p1">Dock fixo visível + pastas do Files no Dock (Projetos, Clínico, Jurídico, Pai)</label></li>
+        <li><input type="checkbox" id="p2"><label for="p2">App padrão por tipo de arquivo: .md → editor; .pdf → Preview; .html → Safari</label></li>
+        <li><input type="checkbox" id="p3"><label for="p3">Blink + Tailscale + Working Copy + a-Shell instalados (tríade dev)</label></li>
+        <li><input type="checkbox" id="p4"><label for="p4">Pencil Pro: squeeze = paleta; double-tap = borracha; Scribble em pt-BR</label></li>
+        <li><input type="checkbox" id="p5"><label for="p5">Entrada de áudio por app configurada quando gravar narração (Central de Controle)</label></li>
+      </ul>
+      <div class="note"><b>Teclado com trackpad</b>Tecla Globo 🌐 é o modificador do sistema: <kbd>🌐H</kbd> mesa, <kbd>🌐↑</kbd> Exposé de janelas, <kbd>🌐⌃seta</kbd> ancora janela na metade da tela, <kbd>🌐A</kbd> Dock. Barra de espaço pressionada = trackpad de cursor no texto.</div>
+    </div>
+  </div>
+
+  <div class="dev" id="dev-ipadold">
+    <div class="head"><span class="tag aux">Dedicado</span><h3>iPad anterior (com teclado)</h3><span class="role">estação do seu pai · Sidecar do mini</span></div>
+    <div class="body">
+      <p><strong>Papel primário: estação de comunicação e audição do Antônio Carlos.</strong> Três funções que se encaixam no quadro dele:</p>
+      <ul>
+        <li><strong>Live Listen:</strong> o iPad vira microfone remoto transmitindo aos AirPods Pro 3 dele — posicionado perto da TV ou na mesa de jantar, funciona como sistema FM improvisado para perda neurossensorial bilateral.</li>
+        <li><strong>FaceTime em quiosque:</strong> Acesso Guiado (triplo-clique) trava o iPad no FaceTime — ele não se perde em menus. Center Stage mantém o rosto enquadrado.</li>
+        <li><strong>Terminal dos vídeos educativos:</strong> os MP4 do pipeline (AirPods, audiograma) ficam numa pasta local do Files, capa aberta = vídeo na mão.</li>
+      </ul>
+      <p><strong>Papel secundário:</strong> quando na sua mesa, superfície Sidecar do MacBook Air ou tela de monitoração do mini (htop/logs numa janela Blink permanente).</p>
+    </div>
+  </div>
+
+  <div class="dev" id="dev-i17">
+    <div class="head"><span class="tag">Satélite</span><h3>iPhone 17 Pro Max</h3><span class="role">primário · captura · voz</span></div>
+    <div class="body">
+      <p><strong>Papel:</strong> o sensor principal do sistema — câmera, scanner (Continuity Camera e Notas), ditado, Shortcuts por voz, autenticação. É o disparador do LLM Matheus fora de casa (Seção 08).</p>
+      <ul class="check" data-group="i17">
+        <li><input type="checkbox" id="h1"><label for="h1">Modos de Foco sincronizados: <strong>Plantão</strong> (só ligações + Dani + família), <strong>Deep Work</strong>, <strong>Sono</strong> — eles se propagam a todos os aparelhos</label></li>
+        <li><input type="checkbox" id="h2"><label for="h2">Back Tap (Ajustes → Acessibilidade → Toque): 2 toques na traseira = Shortcut de captura de nota; 3 toques = lanterna</label></li>
+        <li><input type="checkbox" id="h3"><label for="h3">Botão de Ação = Shortcut "Falar com Matheus-LLM" (Seção 08)</label></li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="dev" id="dev-i15">
+    <div class="head"><span class="tag aux">Dedicado</span><h3>iPhone 15 Pro Max</h3><span class="role">rig de captação · dispositivo de teste</span></div>
+    <div class="body">
+      <p><strong>Papel primário: câmera B fixa.</strong> Num tripé barato, ele é: webcam de alta qualidade do Mac mini via Continuity Camera (o mini não tem câmera!), câmera dos vídeos educativos, teleprompter reverso quando o iPad mostra o roteiro, e scanner de documentos dedicado para o dossiê jurídico — sempre no mesmo lugar, sempre carregado (carregador MagSafe permanente no tripé).</p>
+      <p><strong>Papel secundário: dispositivo de teste do Xcode.</strong> Seus apps (MedKit iOS) instalam nele primeiro — se um build travar ou drenar bateria, seu telefone principal não sofre. Mantido 1 versão de iOS atrás quando útil para testar compatibilidade.</p>
+      <div class="gold"><b>Segredo</b>Continuity Camera funciona <em>sem cabo</em> e inclui Desk View: a ultra-wide filma sua mesa de cima — perfeito para gravar escrita à mão em aula ou demonstração de exame físico em manequim.</div>
+    </div>
+  </div>
+
+  <div class="dev" id="dev-imac">
+    <div class="head"><span class="tag aux">Dedicado</span><h3>iMac legado</h3><span class="role">cofre de backup</span></div>
+    <div class="body">
+      <p><strong>Papel: destino de Time Machine da frota.</strong> Ajustes → Compartilhamento → Compartilhamento de Arquivos → marque um disco/pasta como destino de backup ("Usar como destino de backup do Time Machine"). MacBook Air e (redundante ao SSD) o mini apontam para ele pela rede local. Um Mac antigo parado é exatamente isso: horas de CPU irrelevantes, gigabytes relevantes.</p>
+      <p>Se o macOS dele ainda recebe atualizações de segurança, pode acumular a função de segunda tela de monitoração. Se não recebe, mantenha-o fora da malha Tailscale e restrito à rede local — superfície de ataque de OS sem patch não entra na espinha dorsal.</p>
+    </div>
+  </div>
+
+  <div class="dev" id="dev-watch">
+    <div class="head"><span class="tag aux">Órgão</span><h3>Apple Watch</h3><span class="role">interface de pulso</span></div>
+    <div class="body">
+      <ul>
+        <li>Desbloqueia o MacBook Air por proximidade e aprova pedidos de <code>sudo</code> (Ajustes do Mac → Touch ID → Apple Watch).</li>
+        <li>Siri no pulso dispara qualquer Shortcut — incluindo o LLM Matheus: pergunta clínica ditada no corredor do UPA, resposta no fone.</li>
+        <li>Obturador remoto da câmera do iPhone 15 no tripé (app Câmera Remota nativo).</li>
+        <li>Ping do iPhone perdido; agora com direção precisa por UWB.</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="dev" id="dev-pods">
+    <div class="head"><span class="tag aux">Órgão</span><h3>AirPods 4</h3><span class="role">áudio ubíquo</span></div>
+    <div class="body">
+      <p>Troca automática entre dispositivos do mesmo Apple ID — mas o padrão "automático" rouba o áudio na hora errada. Ajuste em cada dispositivo: Ajustes → Bluetooth → ⓘ nos AirPods → Conectar a Este [dispositivo] → <strong>Quando Conectado por Último</strong> no Mac mini (senão ele sequestra o áudio ao rodar qualquer som de notificação). Isolamento de Voz nas ligações do plantão; e ditado longo para o Whisper local (Seção 08) sai melhor pelos AirPods que pelo mic do aparelho no bolso.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ========== 03 CONTINUIDADE ========== -->
+<section id="s3">
+  <div class="sechead"><span class="num">SEÇÃO 03</span><h2>Continuidade entre telas</h2></div>
+  <p class="lead">A Apple tem sete mecanismos distintos de continuidade e quase todo mundo usa dois. Mapa completo, com o gatilho de cada um:</p>
+  <table>
+    <tr><th>Mecanismo</th><th>O que faz</th><th>Gatilho / onde ativa</th></tr>
+    <tr><td><strong>Handoff</strong></td><td>Continua o app de um aparelho no outro</td><td>Ícone no Dock (Mac) ou App Switcher (iPad/iPhone)</td></tr>
+    <tr><td><strong>Universal Clipboard</strong></td><td>Copia num aparelho, cola no outro</td><td>Automático · validade ~2 min · exige Bluetooth+Wi-Fi ligados</td></tr>
+    <tr><td><strong>Universal Control</strong></td><td>Um teclado/trackpad controla Mac + iPad lado a lado, com arrastar-e-soltar de arquivos entre eles</td><td>Empurre o cursor do Mac até a borda em direção ao iPad</td></tr>
+    <tr><td><strong>Sidecar</strong></td><td>iPad como segunda tela do Mac; Pencil como mesa digitalizadora</td><td>Central de Controle do Mac → Espelhamento de Tela → iPad</td></tr>
+    <tr><td><strong>Continuity Camera</strong></td><td>iPhone como webcam/scanner do Mac; Desk View filma a mesa</td><td>Apps de vídeo do Mac listam o iPhone como câmera; Notas/Finder → Inserir do iPhone</td></tr>
+    <tr><td><strong>iPhone Mirroring</strong></td><td>iPhone inteiro como janela no macOS, notificações incluídas</td><td>App Espelhamento do iPhone no Mac</td></tr>
+    <tr><td><strong>AirDrop</strong></td><td>Transferência direta ponto-a-ponto</td><td>Compartilhar → AirDrop; aproximar iPhones transfere no gesto</td></tr>
+  </table>
+  <div class="warn"><b>Distinção que evita frustração</b>Universal Control ≠ Sidecar e eles são mutuamente exclusivos por sessão. Universal Control: o iPad continua rodando iPadOS, você só compartilha teclado/cursor. Sidecar: o iPad vira monitor burro do macOS. Anotar PDF do Mac com Pencil → Sidecar. Arrastar um PNG do iPad para o Keynote do Mac → Universal Control.</div>
+  <p><strong>Combinação máxima na sua mesa:</strong> Mac mini (headless) → tela principal = monitor; MacBook Air ao lado com Universal Control; iPad Pro como terceira superfície; iPhone 17 espelhado numa janela. Quatro sistemas, um teclado.</p>
+</section>
+
+<!-- ========== 04 NUVEM ========== -->
+<section id="s4">
+  <div class="sechead"><span class="num">SEÇÃO 04</span><h2>Nuvem e arquivos — a doutrina dos três destinos</h2></div>
+  <p class="lead">Sua prática atual já é correta; o manual apenas a formaliza e adiciona a regra que protege os repositórios.</p>
+  <table>
+    <tr><th>Destino</th><th>O que mora lá</th><th>Regra</th></tr>
+    <tr><td><strong>iCloud Drive</strong></td><td>WIP ativo — documentos em edição, projetos vivos, Desktop & Documentos sincronizados</td><td>O que você tocou esta semana</td></tr>
+    <tr><td><strong>Git / GitHub</strong></td><td>Todo código e todo projeto versionável (HTML educacional incluído)</td><td>Fonte da verdade com histórico</td></tr>
+    <tr><td><strong>Google Drive</strong></td><td>Backup frio, dossiês fechados, acervo (~50k arquivos), duplicatas hash-locked</td><td>O que precisa existir, não ser editado</td></tr>
+  </table>
+  <div class="warn"><b>A regra dos repositórios</b>Nunca deixe um repositório Git dentro de pasta sincronizada (iCloud, Drive, Dropbox). O sincronizador compete com o Git pelos arquivos de <code>.git/</code> no meio de operações e corrompe o índice — falha silenciosa, descoberta semanas depois. Repositórios moram em <code>~/Developer</code>, fora de qualquer sync. O backup deles É o push.</div>
+  <p><strong>Otimização silenciosa do iCloud:</strong> "Otimizar Armazenamento do Mac" remove arquivos locais sob pressão de disco — ótimo no MacBook Air, <em>péssimo no Mac mini servidor</em> (um script agendado que espera um arquivo local encontra um placeholder). No mini: Ajustes → Apple ID → iCloud Drive → desmarcar otimização, ou fixar as pastas críticas com "Manter Baixado" (clique-direito na pasta).</p>
+  <p><strong>Proteção Avançada de Dados (ADP):</strong> criptografia ponta-a-ponta do iCloud inteiro. Com dossiês jurídicos e dados clínicos na sua nuvem, vale ativar — o custo é que a Apple não recupera sua conta se você perder senha + dispositivos + chave de recuperação. Imprima a chave de recuperação e guarde com os documentos físicos do caso Santander.</p>
+</section>
+
+<!-- ========== 05 TERMINAL ========== -->
+<section id="s5">
+  <div class="sechead"><span class="num">SEÇÃO 05</span><h2>Terminal, Git e GitHub</h2></div>
+  <h3>5.1 · Dotfiles: uma identidade, três máquinas</h3>
+  <p>Mini, Air e (via Blink) iPad devem se comportar identicamente. O mecanismo: repositório <code>dotfiles</code> no GitHub com <code>.zshrc</code>, <code>.gitconfig</code>, <code>.tmux.conf</code>, e um <code>install.sh</code> que cria symlinks. Máquina nova = 1 clone + 1 script.</p>
+  <div class="term"><div class="bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="lbl">zsh — qualquer mac</span><button data-copy>copiar</button></div>
+<pre>mkdir -p ~/Developer && cd ~/Developer
+gh auth login                    <span class="c"># brew install gh, uma vez</span>
+gh repo create dotfiles --private --clone
+cd dotfiles
+<span class="c"># mova para cá seus .zshrc/.gitconfig/.tmux.conf e crie:</span>
+cat &gt; install.sh &lt;&lt;'EOF'
+#!/bin/zsh
+for f in zshrc gitconfig tmux.conf; do
+  ln -sf "$PWD/.$f" "$HOME/.$f"
+done
+echo "dotfiles linkados → $(hostname)"
+EOF
+chmod +x install.sh && ./install.sh
+git add -A && git commit -m "dotfiles: base" && git push</pre></div>
+
+  <h3>5.2 · Git no iPad: a tríade</h3>
+  <p><strong>Working Copy</strong> (cliente Git completo, integra com Files — a pasta do repo aparece como local no iPad), <strong>a-Shell</strong> (shell local com python/vim/curl para edições offline), <strong>Blink</strong> (o trabalho pesado acontece no mini). Fluxo: editar no iPad em Working Copy → commit/push do próprio iPad → <code>git pull</code> no mini pela sessão Blink → rodar/testar lá. O Files do iPadOS 26 com app padrão por extensão fecha o circuito: tocar num <code>.py</code> do repo abre direto no editor certo.</p>
+  <div class="note"><b>Claude Code remoto</b>No mini, dentro do tmux: <code>cd ~/Developer/projeto && claude</code>. Do iPad, <code>mosh macmini -- tmux attach</code> e você está pareando com o agente de qualquer lugar. Sessões longas de refatoração continuam rodando com a capa do iPad fechada.</div>
+</section>
+
+<!-- ========== 06 XCODE ========== -->
+<section id="s6">
+  <div class="sechead"><span class="num">SEÇÃO 06</span><h2>Xcode e builds</h2></div>
+  <p class="lead">Divisão de trabalho: <strong>edição e depuração no MacBook Air</strong> (tela, portabilidade), <strong>builds longos e testes agendados no mini</strong> (via <code>xcodebuild</code> em tmux).</p>
+  <ul>
+    <li><strong>Depuração sem fio:</strong> Xcode → Window → Devices and Simulators → conectar o iPhone 15 uma vez por cabo → marcar <em>Connect via network</em>. Depois disso, build & run por Wi-Fi; o telefone de teste nem sai do tripé.</li>
+    <li><strong>MedKit no seu bolso sem App Store:</strong> com conta de desenvolvedor paga, TestFlight interno; sem ela, instalação direta vale 7 dias (conta gratuita) — o mini pode reassinar semanalmente via <code>xcodebuild</code> agendado, mas a conta paga elimina essa fricção e destrava o TestFlight para distribuir aos colegas do UPA.</li>
+    <li><strong>Swift Playground no iPad Pro:</strong> protótipo de UI SwiftUI direto no iPad, com preview ao vivo; quando cresce, o projeto abre no Xcode do Air sem conversão.</li>
+    <li><strong>xcodebuild no núcleo:</strong> <code>xcodebuild -scheme MedKit -destination 'generic/platform=iOS' build</code> num LaunchAgent noturno = você acorda sabendo se a main quebrou.</li>
+  </ul>
+</section>
+<!-- ========== 07 AUTOMACAO ========== -->
+<section id="s7">
+  <div class="sechead"><span class="num">SEÇÃO 07</span><h2>Automação em três camadas</h2></div>
+  <p class="lead">O erro comum é tentar resolver tudo com uma ferramenta. O ecossistema tem três camadas com fisiologias diferentes — escolha pela natureza do gatilho:</p>
+  <table>
+    <tr><th>Camada</th><th>Gatilho</th><th>Vive em</th><th>Use para</th></tr>
+    <tr><td><strong>Shortcuts</strong></td><td>Voz, toque, hora, local, NFC, Foco, app aberto</td><td>Todos os aparelhos, sincronizado via iCloud</td><td>Ações humanas: capturar, perguntar, disparar</td></tr>
+    <tr><td><strong>Automator / Serviços</strong></td><td>Clique-direito, Ação de Pasta, item de menu</td><td>macOS</td><td>Contexto sobre arquivos: converter, renomear, mover</td></tr>
+    <tr><td><strong>launchd</strong></td><td>Cron determinístico, boot, mudança em path</td><td>Mac mini</td><td>Rotina que não depende de ninguém acordado</td></tr>
+  </table>
+
+  <h3>7.1 · Shortcuts que valem construir primeiro</h3>
+  <ul>
+    <li><strong>Modo Plantão</strong> (automação por local ou horário): ativa Foco Plantão em todos os aparelhos, abre o MedKit, baixa brilho do Watch. Ao sair do local, desfaz.</li>
+    <li><strong>Captura Universal</strong> (Botão de Ação / Back Tap): Ditar Texto → Anexar a nota "Inbox" no Notes → o mini processa depois. Zero fricção entre pensamento e registro.</li>
+    <li><strong>Scanner Jurídico</strong> (na Tela de Início do iPhone 15): Digitalizar Documento → Converter em PDF → Salvar em iCloud/Jurídico/Entrada → Ação de Pasta no mini renomeia com data e OCR (7.2).</li>
+    <li><strong>Falar com Matheus-LLM</strong>: Seção 08 — o Shortcut mais importante do sistema.</li>
+  </ul>
+  <div class="note"><b>Shortcuts pode rodar SSH</b>A ação "Executar Script via SSH" dispara comandos no mini direto de um atalho no iPhone/Watch. Exemplo real: atalho "Status do Núcleo" roda <code>uptime && tmux ls && df -h /</code> e fala o resultado. Seu servidor responde à voz.</div>
+
+  <h3>7.2 · Automator: Ações de Pasta (o recurso esquecido)</h3>
+  <p>Automator → novo documento → <strong>Ação de Pasta</strong> → anexar à pasta <code>Jurídico/Entrada</code> → fluxo: Executar Shell Script → seu Python de OCR/renomeação. Todo PDF que cair ali (do scanner do iPhone, via iCloud) é processado sem comando. É o padrão "esteira": pastas de entrada + processador automático, replicável para exames, artigos, recibos.</p>
+
+  <h3>7.3 · launchd: o cron que sobrevive</h3>
+  <div class="term"><div class="bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="lbl">~/Library/LaunchAgents/com.coelho.backupdrive.plist</span><button data-copy>copiar</button></div>
+<pre>&lt;?xml version="1.0" encoding="UTF-8"?&gt;
+&lt;!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+ "http://www.apple.com/DTDs/PropertyList-1.0.dtd"&gt;
+&lt;plist version="1.0"&gt;&lt;dict&gt;
+  &lt;key&gt;Label&lt;/key&gt;&lt;string&gt;com.coelho.backupdrive&lt;/string&gt;
+  &lt;key&gt;ProgramArguments&lt;/key&gt;&lt;array&gt;
+    &lt;string&gt;/bin/zsh&lt;/string&gt;&lt;string&gt;-c&lt;/string&gt;
+    &lt;string&gt;~/Developer/scripts/sync_drive.sh&lt;/string&gt;
+  &lt;/array&gt;
+  &lt;key&gt;StartCalendarInterval&lt;/key&gt;&lt;dict&gt;
+    &lt;key&gt;Hour&lt;/key&gt;&lt;integer&gt;3&lt;/integer&gt;
+    &lt;key&gt;Minute&lt;/key&gt;&lt;integer&gt;30&lt;/integer&gt;
+  &lt;/dict&gt;
+  &lt;key&gt;StandardErrorPath&lt;/key&gt;
+  &lt;string&gt;/tmp/backupdrive.err&lt;/string&gt;
+&lt;/dict&gt;&lt;/plist&gt;</pre></div>
+  <div class="term"><div class="bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="lbl">zsh — mac mini</span><button data-copy>copiar</button></div>
+<pre>launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.coelho.backupdrive.plist
+launchctl list | grep coelho     <span class="c"># confirma carregado</span></pre></div>
+  <p>Mesma anatomia do seu despertador v3.0 — o padrão se generaliza: backup noturno para o Drive (rclone), build de verificação do MedKit, snapshot do RAG, verificação de integridade dos hash-locked.</p>
+</section>
+
+<!-- ========== 08 LLM MATHEUS ========== -->
+<section id="s8">
+  <div class="sechead"><span class="num">SEÇÃO 08</span><h2>LLM Matheus — o núcleo cognitivo</h2></div>
+  <p class="lead">Você já construiu as peças: <code>llm_council.py</code>, RAG com ChromaDB + sentence-transformers, pipeline Whisper. O que falta é <strong>soldá-las num serviço permanente com uma porta de entrada por voz</strong>. Arquitetura:</p>
+
+  <div class="arch">iPhone 17 / Watch / iPad&nbsp;&nbsp;──ditado──▶&nbsp;&nbsp;Shortcut "Matheus-LLM"
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;│
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;▼ POST https://macmini:8443/ask&nbsp;&nbsp;(malha Tailscale, token Bearer)
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;│
+&nbsp;&nbsp;FastAPI no Mac mini&nbsp;&nbsp;──▶&nbsp;&nbsp;roteador:
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;├─ pergunta clínica&nbsp;&nbsp;──▶ RAG (ChromaDB: suas notas, protocolos, CAD 360)
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;├─ raciocínio pesado&nbsp;──▶ API Anthropic (com contexto do RAG)
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;└─ rápido/offline&nbsp;&nbsp;&nbsp;&nbsp;──▶ Ollama/MLX local (llama/qwen quantizado)
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;│
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;▼ resposta JSON ──▶ Shortcut fala no AirPods / mostra na tela</div>
+
+  <h3>8.1 · Subir o serviço de inferência local</h3>
+  <div class="term"><div class="bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="lbl">zsh — mac mini</span><button data-copy>copiar</button></div>
+<pre>brew install ollama
+brew services start ollama            <span class="c"># sobe no boot, escuta em :11434</span>
+ollama pull qwen2.5:14b               <span class="c"># bom equilíbrio p/ 16-24 GB de RAM</span>
+ollama run qwen2.5:14b "teste em uma linha"
+
+<span class="c"># alternativa nativa Apple Silicon (mais rápida em Metal):</span>
+pip3 install mlx-lm
+python3 -m mlx_lm generate --model mlx-community/Qwen2.5-14B-Instruct-4bit \
+  --prompt "teste"</pre></div>
+
+  <h3>8.2 · A porta de entrada (esqueleto FastAPI)</h3>
+  <div class="term"><div class="bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="lbl">~/Developer/matheus-llm/app.py</span><button data-copy>copiar</button></div>
+<pre>from fastapi import FastAPI, Header, HTTPException
+import httpx, os
+
+app = FastAPI()
+TOKEN = os.environ["MLLM_TOKEN"]          <span class="c"># export no LaunchAgent</span>
+
+@app.post("/ask")
+async def ask(payload: dict, authorization: str = Header("")):
+    if authorization != f"Bearer {TOKEN}":
+        raise HTTPException(401)
+    q = payload["q"]
+    <span class="c"># v1: tudo pro Ollama; v2: roteia p/ RAG e Anthropic</span>
+    async with httpx.AsyncClient(timeout=120) as c:
+        r = await c.post("http://localhost:11434/api/generate",
+            json={"model": "qwen2.5:14b", "prompt": q, "stream": False})
+    return {"a": r.json()["response"]}</pre></div>
+  <p>Servido por <code>uvicorn</code> num LaunchAgent (mesma anatomia da 7.3), alcançável de qualquer aparelho pela malha como <code>http://macmini:8000/ask</code>. O Shortcut: Ditar Texto → Obter Conteúdo de URL (POST, cabeçalho Bearer) → Obter Valor do Dicionário <code>a</code> → Falar Texto. No Watch, o mesmo atalho responde no pulso.</p>
+  <div class="gold"><b>Por que isso importa</b>Isto é o "com h": um assistente que carrega <em>seu</em> corpus — CAD 360, Respira, seus protocolos, suas notas — e responde na sua doutrina, não na média da internet. O RAG que você já tem é o que o diferencia de um chatbot genérico. E os dados clínicos nunca saem da sua máquina no caminho rápido local.</div>
+  <div class="warn"><b>Limite explícito</b>Ferramenta de apoio cognitivo pessoal — não é dispositivo médico, não decide conduta, não entra em prontuário. A decisão clínica permanece sua; o sistema recupera e organiza, você julga.</div>
+</section>
+
+<!-- ========== 09 SEGREDOS ========== -->
+<section id="s9">
+  <div class="sechead"><span class="num">SEÇÃO 09</span><h2>Segredos e truques — arsenal curado</h2></div>
+  <h3>iPadOS 26</h3>
+  <ul>
+    <li>Pencil na tela bloqueada = nota manuscrita instantânea; swipe do canto inferior = Quick Note (gestos de canto exigem multitarefa desativada).</li>
+    <li>Janelas ocultas: app com várias janelas mostra seletor navegável ao abrir, com "Reabrir Janela Fechada".</li>
+    <li>Exportações e tarefas pesadas seguem em background com Live Activity na tela bloqueada.</li>
+    <li>Três dedos: pinça = copiar, abre = colar, swipe esquerda = desfazer, direita = refazer.</li>
+    <li>Files: colunas redimensionáveis, pastas com cor/ícone (sincroniza com o Mac), app padrão por extensão.</li>
+  </ul>
+  <h3>macOS</h3>
+  <ul>
+    <li>Segure <kbd>⌥</kbd> em quase qualquer menu e as opções mudam (ex.: Wi-Fi vira diagnóstico completo; "Salvar" vira "Salvar Como").</li>
+    <li><kbd>⌘⇧.</kbd> no Finder alterna arquivos ocultos; <kbd>⌥</kbd>+clique no ícone de volume escolhe saída de áudio.</li>
+    <li>Substituições de texto (Ajustes → Teclado) sincronizam pelo iCloud: <code>;crm</code> → assinatura completa com CRM, em todos os aparelhos, inclusive iPad.</li>
+    <li>Spotlight faz conversão de unidades e moedas inline; <kbd>⌘</kbd>+hover mostra o caminho do arquivo.</li>
+    <li><code>caffeinate -t 7200</code> segura o Mac acordado por 2h exatas — melhor que mexer em ajustes.</li>
+  </ul>
+  <h3>iPhone</h3>
+  <ul>
+    <li>Back Tap (2 e 3 toques na traseira) = dois botões invisíveis programáveis com Shortcuts.</li>
+    <li>Segure o cronômetro na Central de Controle para escolher duração sem abrir o Relógio.</li>
+    <li>Medidor no app Bússola/Medida usa LiDAR para altura de pessoas — e para estimar distâncias em fotos de ferimento (documentação, não mensuração oficial).</li>
+    <li>Ditado + teclado funcionam simultaneamente: fale e corrija digitando sem sair do modo.</li>
+  </ul>
+  <h3>Entre dispositivos</h3>
+  <ul>
+    <li>Copiou no iPhone, colou no Mac — mas o Universal Clipboard expira em ~2 min; se "não funcionou", foi timeout, não defeito.</li>
+    <li>Notas → botão de scanner usa a câmera do iPhone <em>a partir do Mac</em> (Continuity): clique-direito na nota → Inserir do iPhone.</li>
+    <li>Hotspot Instantâneo: o iPad/Mac conecta ao 5G do iPhone pelo menu Wi-Fi sem tocar no telefone.</li>
+  </ul>
+</section>
+
+<!-- ========== 10 ACESSORIOS ========== -->
+<section id="s10">
+  <div class="sechead"><span class="num">SEÇÃO 10</span><h2>Acessórios — o que compra e o que não compra</h2></div>
+  <table>
+    <tr><th>Item</th><th>Função no sistema</th><th>Prioridade</th></tr>
+    <tr><td>Apple Pencil Pro</td><td>Já decidido — input de precisão iPad + Sidecar/Mac</td><td>—</td></tr>
+    <tr><td>Hub USB-C/Thunderbolt (o do mini)</td><td>SSD + Ethernet + monitor no núcleo; Ethernet cabeada no servidor elimina uma classe inteira de instabilidade</td><td>Alta</td></tr>
+    <tr><td>SSD NVMe externo ≥2 TB</td><td>Time Machine do mini + modelos LLM (cada modelo 8-20 GB)</td><td>Alta</td></tr>
+    <tr><td>Tripé + suporte MagSafe</td><td>Estação fixa do iPhone 15 (rig de captação)</td><td>Alta</td></tr>
+    <tr><td>Carregador 70W+ GaN de bolso</td><td>Recarga rápida do iPad Pro (50% em ~30 min) e do Air com um só plugue</td><td>Média</td></tr>
+    <tr><td>Mic USB-C dinâmico</td><td>Narração do pipeline educacional — o seletor de áudio por app do iPadOS 26 destrava isso</td><td>Média</td></tr>
+    <tr><td>Paperlike ou similar</td><td>Só se a escrita longa com Pencil incomodar no vidro; custa nitidez da OLED. Testar antes de comprar</td><td>Baixa</td></tr>
+  </table>
+</section>
+
+<!-- ========== 11 DIA 1 ========== -->
+<section id="s11">
+  <div class="sechead"><span class="num">SEÇÃO 11</span><h2>Checklist Dia 1 — terça, 30 minutos cronometrados</h2></div>
+  <p class="lead">Ordem importa: rede antes de apps, identidade antes de dados, núcleo antes de satélite.</p>
+  <ol class="check" data-group="dia1">
+    <li><input type="checkbox" id="d01"><label for="d01">Ligar o iPad Pro ao lado do iPhone 17 → configuração por proximidade transfere identidade e ajustes</label><span class="t">~10 min</span></li>
+    <li><input type="checkbox" id="d02"><label for="d02">Ajustes → Geral → Atualização de Software → última versão do iPadOS 26 antes de qualquer coisa</label><span class="t">~8 min</span></li>
+    <li><input type="checkbox" id="d03"><label for="d03">eSIM: transferir/ativar plano celular (QR da operadora ou transferência do iPhone)</label><span class="t">2 min</span></li>
+    <li><input type="checkbox" id="d04"><label for="d04">Instalar: Tailscale, Blink Shell, Working Copy, a-Shell → login Tailscale</label><span class="t">4 min</span></li>
+    <li><input type="checkbox" id="d05"><label for="d05">Blink: criar host <code>mini</code>, gerar chave ed25519, colar pública no mini, testar <code>mosh macmini -- tmux attach -t nucleo</code></label><span class="t">5 min</span></li>
+    <li><input type="checkbox" id="d06"><label for="d06">Dock: fixar visível, arrastar pastas do Files (Projetos, Clínico, Jurídico, Pai)</label><span class="t">2 min</span></li>
+    <li><input type="checkbox" id="d07"><label for="d07">Files: definir apps padrão (.md, .pdf, .html)</label><span class="t">1 min</span></li>
+    <li><input type="checkbox" id="d08"><label for="d08">Magic Keyboard: testar <kbd>🌐↑</kbd>, <kbd>🌐⌃setas</kbd>, barra de espaço como trackpad</label><span class="t">1 min</span></li>
+    <li><input type="checkbox" id="d09"><label for="d09">Central de Controle: adicionar Gravação de Tela, Modo de Baixa Energia, seletor de entrada de áudio</label><span class="t">1 min</span></li>
+    <li><input type="checkbox" id="d10"><label for="d10">Quando o Pencil Pro chegar: parear (encostar na lateral), configurar squeeze = paleta, testar Math Notes escrevendo uma equação de correção de sódio</label><span class="t">3 min</span></li>
+    <li><input type="checkbox" id="d11"><label for="d11">Prova final: abrir Blink → mini → <code>claude</code> num repositório → fechar a capa → reabrir → sessão viva. Se passou, o cockpit está operacional</label><span class="t">2 min</span></li>
+  </ol>
+  <div class="note"><b>Depois do Dia 1</b>Semana 1: seções 04 (nuvem) e 07 (primeiros Shortcuts). Semana 2: seção 08 — o LLM Matheus sobe em uma tarde porque as peças já existem.</div>
+</section>
+
+<div class="footer">
+  <span>ECO-COELHO/OPS-01 · rev 1.0 · offline-first · fontes do sistema</span>
+  <span>construído para ensinar ao fazer</span>
+</div>
+</div><!-- /wrap -->
+
+<script>
+(function(){
+  "use strict";
+  // topology nav
+  document.querySelectorAll(".node").forEach(function(n){
+    n.addEventListener("click",function(){
+      var t=document.getElementById(n.dataset.goto);
+      if(t)t.scrollIntoView({behavior:"smooth",block:"start"});
+    });
+  });
+  // copy buttons
+  document.querySelectorAll("[data-copy]").forEach(function(b){
+    b.addEventListener("click",function(){
+      var pre=b.closest(".term").querySelector("pre");
+      navigator.clipboard.writeText(pre.innerText).then(function(){
+        b.textContent="copiado ✓";
+        setTimeout(function(){b.textContent="copiar";},1600);
+      });
+    });
+  });
+  // persistent checklists + progress
+  var boxes=Array.prototype.slice.call(document.querySelectorAll(".check input[type=checkbox]"));
+  var KEY="eco-coelho-v1";
+  var state={};
+  try{state=JSON.parse(localStorage.getItem(KEY)||"{}");}catch(e){state={};}
+  function render(){
+    var done=0;
+    boxes.forEach(function(cb){
+      cb.checked=!!state[cb.id];
+      cb.closest("li").classList.toggle("done",cb.checked);
+      if(cb.checked)done++;
+    });
+    document.getElementById("progtxt").textContent=done+"/"+boxes.length+" executado";
+    document.getElementById("progfill").style.width=(boxes.length?100*done/boxes.length:0)+"%";
+  }
+  boxes.forEach(function(cb){
+    cb.addEventListener("change",function(){
+      state[cb.id]=cb.checked;
+      try{localStorage.setItem(KEY,JSON.stringify(state));}catch(e){}
+      render();
+    });
+  });
+  render();
+})();
+</script>
+</body>
+</html>
