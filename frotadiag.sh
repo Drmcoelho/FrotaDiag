@@ -1,7 +1,7 @@
 #!/usr/bin/env zsh
 # ============================================================================
 #  frotadiag.sh · Ecossistema Coelho — diagnóstico canônico único
-#  Operador: Dr. Matheus M. Coelho · rev 2.7 · jul 2026
+#  Operador: Dr. Matheus M. Coelho · rev 2.8 · jul 2026
 # ----------------------------------------------------------------------------
 #  Um script, um repositório (drmcoelho/FrotaDiag), roda idêntico em
 #  qualquer Mac. Substitui frota-diag.sh + disk-triage.sh + zshrc-audit.sh.
@@ -11,7 +11,8 @@
 #    disk [scan|clean]    → espaço em disco. scan=leitura; clean=guiada.
 #    zshrc                → censo de dotfiles, segredos SEMPRE redigidos.
 #    provision [--yes]    → instala ferramentas ausentes, if-not, perguntando.
-#    fleet                → rollup de todos os hosts (lê latest.json no iCloud).
+#    fleet                → rollup de todos os hosts (lê latest.json no iCloud;
+#                           FLEET_REMOTES puxa via ssh/rsync antes, p/ multi-conta).
 #    schedule [install|uninstall|status] → LaunchAgent nightly de diag.
 #    all                  → diag + disk scan + zshrc num relatório único.
 #    help
@@ -28,7 +29,23 @@
 
 umask 022
 
-SCRIPT_VERSION="2.7.1"
+SCRIPT_VERSION="2.8"
+# CHANGELOG 2.7.1→2.8 (frota multi-conta — pull ativo antes do rollup):
+#  Problema: a frota usa CONTAS iCloud DISTINTAS, então o iCloud compartilhado
+#  não é substrato universal — máquinas de outra conta nunca entram no glob do
+#  fleet (o mini, conta ≠ Air, jamais aparecia no rollup do Air). SSH via tailnet
+#  Air→mini funciona; faltava um pull.
+#  · Nova env-overridable FLEET_REMOTES (default "" = comportamento 2.7 intacto):
+#    lista separada por espaço de fontes read-only sincronizadas p/ dentro do
+#    ICLOUD_BASE local ANTES do glob. Item = `user@host` (base iCloud remota
+#    padrão), `user@host:/base` (base explícita) ou `/caminho/local` (fixture).
+#  · fleet_pull_remotes: descobre <dir>/latest.json remotos via ssh+find, puxa
+#    cada um por `rsync -azt --timeout=10` (fallback `scp -p`), preservando mtime
+#    p/ a staleness seguir honesta. SSH sempre BatchMode/IdentitiesOnly/
+#    ConnectTimeout=6 (+ -i $FLEET_SSH_KEY se existir). Read-only no remoto.
+#  · Doutrina preservada: falha de um remote NUNCA aborta — imprime aviso e segue;
+#    exit code do fleet reflete só os vereditos. Anti-eco: pula o <dir> cujo nome
+#    bate com HOST_ID local (não sobrescreve dado próprio fresco por cópia stale).
 # CHANGELOG 2.7→2.7.1 (legibilidade do rollup — desambiguação de host visível):
 #  · cmd_fleet: coluna HOST alargada de 16 → 26 chars (cabeçalho, separador e
 #    linha de dados juntos). Com HOST_ID serial-suffixed da 2.4
@@ -181,6 +198,20 @@ TS_ISO="$(date +%Y-%m-%dT%H:%M:%S%z)"
 # + OUT_DIR com HOST_ID serial-suffixed (2.4, anti-colisão de $HOST clonado).
 ICLOUD_BASE="${ICLOUD_BASE:-$HOME/Library/Mobile Documents/com~apple~CloudDocs/FrotaDiag}"
 OUT_DIR="$ICLOUD_BASE/$HOST_ID"
+
+# v2.8: pull ativo antes do rollup. A frota usa CONTAS iCloud DISTINTAS, então o
+# iCloud compartilhado não é substrato universal — máquinas de outra conta nunca
+# aparecem no glob. FLEET_REMOTES (default vazio = comportamento 2.7 intacto) lista
+# fontes read-only a sincronizar para dentro do ICLOUD_BASE local ANTES do glob.
+# Itens separados por espaço, cada um:
+#   user@host              → ssh; base remota = default iCloud (~/Library/…/FrotaDiag)
+#   user@host:/caminho     → ssh; base remota explícita
+#   /caminho/local         → fonte local (fixture/teste, sem ssh)
+FLEET_REMOTES="${FLEET_REMOTES:-}"
+# Chave usada nos pulls ssh; só entra no comando se o arquivo existir (IdentitiesOnly).
+FLEET_SSH_KEY="${FLEET_SSH_KEY:-$HOME/.ssh/id_ed25519}"
+# Base iCloud remota assumida quando o remote não traz `:/caminho` explícito.
+FLEET_REMOTE_BASE="${FLEET_REMOTE_BASE:-Library/Mobile Documents/com~apple~CloudDocs/FrotaDiag}"
 STATE_DIR="$HOME/.local/state/frotadiag"
 LOG_FILE="$STATE_DIR/frotadiag.log"
 mkdir -p "$STATE_DIR"
@@ -908,11 +939,86 @@ cmd_provision() {
 
 # =============================================================== FLEET (rollup)
 
+# v2.8: pull ativo antes do rollup. Sincroniza cada <dir>/latest.json de cada
+# fonte em FLEET_REMOTES para dentro de $ICLOUD_BASE/<dir>/latest.json, READ-ONLY
+# no remoto, preservando mtime (-t/-p) p/ a coluna de staleness seguir honesta.
+# Doutrina: falha de um remote NUNCA aborta o rollup — só imprime aviso e segue;
+# o exit code do fleet reflete apenas os vereditos dos hosts. Anti-eco: pula o
+# diretório cujo nome bate com o HOST_ID local (não sobrescreve dado próprio fresco).
+fleet_pull_remotes() {
+  [[ -n "$FLEET_REMOTES" ]] || return 0
+  local dst_base="$ICLOUD_BASE"
+  mkdir -p "$dst_base" 2>/dev/null
+
+  local -a ssh_opts
+  ssh_opts=(-o BatchMode=yes -o IdentitiesOnly=yes -o ConnectTimeout=6)
+  [[ -f "$FLEET_SSH_KEY" ]] && ssh_opts+=(-i "$FLEET_SSH_KEY")
+  local rsh="ssh ${ssh_opts[*]}"
+
+  local remote target rbase rcmd listing dname ldir rpath esc f pulled
+  local -a rfiles
+  for remote in ${(z)FLEET_REMOTES}; do
+    pulled=0
+    if [[ "$remote" != *@* ]]; then
+      # ---------- fonte local (fixture/teste): copia <dir>/latest.json ----------
+      if [[ ! -d "$remote" ]]; then
+        print -- "  ${C_WARN}▲ remote $remote inalcançável — usando dados locais/stale${C_0}"
+        continue
+      fi
+      for f in "$remote"/*/latest.json(N); do
+        dname="${f:h:t}"
+        [[ "$dname" == "$HOST_ID" ]] && continue                    # anti-eco
+        mkdir -p "$dst_base/$dname" 2>/dev/null
+        cp -p "$f" "$dst_base/$dname/latest.json" 2>/dev/null && (( pulled++ ))
+      done
+      (( pulled )) && print -- "  ${C_DIM}↓ $remote: $pulled host(s)${C_0}"
+      continue
+    fi
+
+    # ---------- remoto ssh: user@host  ou  user@host:/base ----------
+    target="${remote%%:*}"
+    if [[ "$remote" == *:* ]]; then rbase="${remote#*:}"; else rbase="\$HOME/$FLEET_REMOTE_BASE"; fi
+    # descobre os <dir>/latest.json remotos; aspas duplas expandem $HOME e
+    # preservam os espaços do caminho iCloud no shell remoto.
+    rcmd="find \"$rbase\" -maxdepth 2 -name latest.json -type f 2>/dev/null"
+    if ! listing="$(ssh "${ssh_opts[@]}" "$target" "$rcmd" 2>/dev/null)" || [[ -z "$listing" ]]; then
+      print -- "  ${C_WARN}▲ remote $remote inalcançável — usando dados locais/stale${C_0}"
+      continue
+    fi
+    rfiles=("${(f)listing}")
+    for rpath in "${rfiles[@]}"; do
+      [[ -n "$rpath" ]] || continue
+      dname="${rpath:h:t}"
+      [[ "$dname" == "$HOST_ID" ]] && continue                      # anti-eco
+      ldir="$dst_base/$dname"
+      mkdir -p "$ldir" 2>/dev/null
+      # rsync (primário): escapa espaços p/ o parsing remote-shell do rsync —
+      # preserva mtime com -t. Testado com openrsync (macOS) e rsync 3.x.
+      # Fallback scp: backend SFTP do OpenSSH 9 trata o caminho remoto como
+      # literal (sem shell remoto), então vai SEM aspas extras; -p preserva mtime.
+      esc="${rpath// /\\ }"
+      if command -v rsync >/dev/null 2>&1 && \
+         rsync -azt --timeout=10 -e "$rsh" "$target:$esc" "$ldir/latest.json" 2>/dev/null; then
+        (( pulled++ ))
+      elif scp "${ssh_opts[@]}" -p "$target:$rpath" "$ldir/latest.json" 2>/dev/null; then
+        (( pulled++ ))
+      fi
+    done
+    if (( pulled )); then
+      print -- "  ${C_DIM}↓ $remote: $pulled host(s)${C_0}"
+    else
+      print -- "  ${C_WARN}▲ remote $remote: nada puxado — usando dados locais/stale${C_0}"
+    fi
+  done
+  return 0
+}
+
 cmd_fleet() {
   if ! command -v jq >/dev/null 2>&1; then
     print -- "${C_WARN}▲ fleet precisa do jq — rode './frotadiag.sh provision'${C_0}"
     return 1
   fi
+  fleet_pull_remotes                        # v2.8: pull ativo (no-op se FLEET_REMOTES vazio)
   local base="$ICLOUD_BASE"
   [[ -d "$base" ]] || base="$STATE_DIR/reports"
   print -- "${C_B}fleet · rollup${C_0} · $base\n"
@@ -1071,6 +1177,6 @@ case "${1:-diag}" in
   fleet)     shift 2>/dev/null; cmd_fleet "$@";;
   schedule)  shift 2>/dev/null; cmd_schedule "$@";;
   all)       shift 2>/dev/null; cmd_all "$@";;
-  help|-h|--help) sed -n '2,28p' "$0" | sed 's/^# \{0,2\}//';;
+  help|-h|--help) sed -n '2,29p' "$0" | sed 's/^# \{0,2\}//';;
   *) print -- "subcomando desconhecido: $1 (use: diag | disk | zshrc | provision | fleet | schedule | all | help)" >&2; exit 64;;
 esac
