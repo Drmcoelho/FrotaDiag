@@ -1,7 +1,7 @@
 #!/usr/bin/env zsh
 # ============================================================================
 #  frotadiag.sh · Ecossistema Coelho — diagnóstico canônico único
-#  Operador: Dr. Matheus M. Coelho · rev 2.2 · jul 2026
+#  Operador: Dr. Matheus M. Coelho · rev 2.3 · jul 2026
 # ----------------------------------------------------------------------------
 #  Um script, um repositório (drmcoelho/FrotaDiag), roda idêntico em
 #  qualquer Mac. Substitui frota-diag.sh + disk-triage.sh + zshrc-audit.sh.
@@ -11,6 +11,8 @@
 #    disk [scan|clean]    → espaço em disco. scan=leitura; clean=guiada.
 #    zshrc                → censo de dotfiles, segredos SEMPRE redigidos.
 #    provision [--yes]    → instala ferramentas ausentes, if-not, perguntando.
+#    fleet                → rollup de todos os hosts (lê latest.json no iCloud).
+#    schedule [install|uninstall|status] → LaunchAgent nightly de diag.
 #    all                  → diag + disk scan + zshrc num relatório único.
 #    help
 #
@@ -26,7 +28,25 @@
 
 umask 022
 
-SCRIPT_VERSION="2.2"
+SCRIPT_VERSION="2.3"
+# CHANGELOG 2.2→2.3 (frota de verdade — coleta vira sistema que se reporta):
+#  A. [fleet] Novo subcomando que lê todos os <host>/latest.json sob ICLOUD_BASE
+#     e imprime rollup (veredito, disco, TM, versão do script, staleness por
+#     mtime do arquivo). Exit code espelha o contrato do diag: 2 se algum host
+#     BAD, 1 se algum WARN. Diretório próprio (_fleet/) fica fora do glob.
+#  B. [diff] cmd_diag agora compara o latest.json ANTERIOR com o atual por
+#     TRANSIÇÃO DE STATUS por chave (OK→WARN→BAD), determinístico e auditável —
+#     nunca por parsing de valores tipo "120h atrás". Primeira execução (sem
+#     latest.json) é no-op. Delta vai para terminal e para o Markdown.
+#  C. [notify] Notificação dispara SÓ nas chaves que viraram BAD desde a última
+#     execução (o conjunto de transição do diff), não em N_BAD>0 — evita
+#     re-alarme de BAD persistente (fadiga de alarme). Canal: banner osascript
+#     (local) + push opcional via FROTADIAG_NTFY_URL (cobre estar longe da
+#     máquina). Silenciável com FROTADIAG_NO_NOTIFY=1.
+#  D. [schedule] install|uninstall|status planta/remove um LaunchAgent nightly
+#     de diag. install/uninstall MUTAM (plist + launchctl) → confirm() sempre,
+#     mesmo tier de disk clean. PATH do plist inclui /opt/homebrew/bin senão
+#     jq/smartctl não resolvem sob o agente e o diff quebra silenciosamente.
 # CHANGELOG 2.1→2.2 (segunda revisão externa):
 #  1. [DISCORDÂNCIA REGISTRADA] Reviewer apontou contradição entre o comentário
 #     "disk clean NUNCA herda --yes" e o código, que de fato bypassa SEGURO.
@@ -64,11 +84,15 @@ HOST="$(scutil --get LocalHostName 2>/dev/null || hostname -s)"
 TS="$(date +%Y%m%d_%H%M%S)"
 TS_ISO="$(date +%Y-%m-%dT%H:%M:%S%z)"
 
-ICLOUD_BASE="$HOME/Library/Mobile Documents/com~apple~CloudDocs/FrotaDiag"
+ICLOUD_BASE="${ICLOUD_BASE:-$HOME/Library/Mobile Documents/com~apple~CloudDocs/FrotaDiag}"
 OUT_DIR="$ICLOUD_BASE/$HOST"
 STATE_DIR="$HOME/.local/state/frotadiag"
 LOG_FILE="$STATE_DIR/frotadiag.log"
 mkdir -p "$STATE_DIR"
+
+SCRIPT_PATH="${0:A}"                       # caminho canônico deste arquivo (p/ launchd)
+LAUNCH_LABEL="com.coelho.frotadiag"
+LAUNCH_PLIST="$HOME/Library/LaunchAgents/$LAUNCH_LABEL.plist"
 
 if [[ -t 1 ]]; then
   C_OK=$'\e[32m'; C_WARN=$'\e[33m'; C_BAD=$'\e[31m'
@@ -363,6 +387,65 @@ layer_updates() {
   return 0
 }
 
+# --- diff temporal + notificação (ambos só LEEM/emitem → não perguntam) -------
+
+_rank() { case "$1" in BAD) print 3;; WARN) print 2;; *) print 1;; esac }  # OK=INFO=1
+
+notify() {  # notify <titulo> <mensagem>. Banner local + push opcional. Nunca falha a camada.
+  [[ "${FROTADIAG_NO_NOTIFY:-0}" == 1 ]] && return 0
+  local title="$1" msg="$2"
+  osascript -e "display notification \"${msg//\"/\\\"}\" with title \"${title//\"/\\\"}\"" >/dev/null 2>&1
+  [[ -n "${FROTADIAG_NTFY_URL:-}" ]] && curl -fsS -m 5 -H "Title: $title" -d "$msg" "$FROTADIAG_NTFY_URL" >/dev/null 2>&1
+  log "notify: $title — $msg"
+  return 0
+}
+
+# diff_and_flag <json_anterior> <json_atual>
+#   Compara status por chave (transição), imprime delta, anexa ao Markdown e
+#   preenche o global NEW_BAD_KEYS com as chaves que VIRARAM BAD (p/ notify).
+diff_and_flag() {
+  typeset -ga NEW_BAD_KEYS=()
+  command -v jq >/dev/null 2>&1 || return 0
+  [[ -f "$1" ]] || return 0                 # primeira execução: sem anterior, no-op
+  typeset -A olds
+  local key st old
+  while IFS=$'\t' read -r key st; do
+    [[ -n "$key" ]] && olds[$key]="$st"
+  done < <(jq -r '.camadas|to_entries[]|"\(.key)\t\(.value.status)"' "$1" 2>/dev/null)
+  typeset -a reg imp
+  while IFS=$'\t' read -r key st; do
+    [[ -z "$key" ]] && continue
+    old="${olds[$key]:-}"
+    if [[ -z "$old" ]]; then                # chave nova: só reporta se preocupante
+      if [[ "$st" == BAD || "$st" == WARN ]]; then
+        reg+=("$key: novo → $st")
+        [[ "$st" == BAD ]] && NEW_BAD_KEYS+=("$key$(_val_of "$2" "$key")")
+      fi
+      continue
+    fi
+    [[ "$st" == "$old" ]] && continue
+    if (( $(_rank "$st") > $(_rank "$old") )); then
+      reg+=("$key: $old → $st")
+      [[ "$st" == BAD && "$old" != BAD ]] && NEW_BAD_KEYS+=("$key$(_val_of "$2" "$key")")
+    elif (( $(_rank "$st") < $(_rank "$old") )); then
+      imp+=("$key: $old → $st")
+    fi
+  done < <(jq -r '.camadas|to_entries[]|"\(.key)\t\(.value.status)"' "$2" 2>/dev/null)
+
+  (( ${#reg} + ${#imp} == 0 )) && return 0
+  print -- "\n${C_B}── Mudanças desde a última execução ──${C_0}"
+  MD_LINES+=("" "### Mudanças desde a última execução" "")
+  local l
+  for l in "${reg[@]}"; do print -- "  ${C_BAD}▼${C_0} $l"; MD_LINES+=("- ▼ $(md_escape "$l")"); done
+  for l in "${imp[@]}"; do print -- "  ${C_OK}▲${C_0} $l"; MD_LINES+=("- ▲ $(md_escape "$l")"); done
+  return 0
+}
+
+_val_of() {  # " (valor)" da chave no json, ou vazio
+  local v; v="$(jq -r ".camadas[\"$2\"].value // \"\"" "$1" 2>/dev/null)"
+  [[ -n "$v" ]] && print -rn -- " ($v)"
+}
+
 write_diag_reports() {
   resolve_out_dir
   local json_path="$OUT_DIR/diag_${TS}.json"
@@ -384,6 +467,7 @@ write_diag_reports() {
     print -r -- "  }"
     print -r -- "}"
   } > "$json_path"
+  diff_and_flag "$OUT_DIR/latest.json" "$json_path"   # lê o latest ANTERIOR antes de sobrescrever
   cp -f "$json_path" "$OUT_DIR/latest.json"
 
   {
@@ -419,6 +503,13 @@ cmd_diag() {
 
   print -- "\n${C_B}RESUMO:${C_0} ${C_OK}● $N_OK ok${C_0} · ${C_WARN}▲ $N_WARN atenção${C_0} · ${C_BAD}✖ $N_BAD críticos${C_0}"
   write_diag_reports
+  if (( ${#NEW_BAD_KEYS[@]} > 0 )); then
+    # título ASCII de propósito: vira header HTTP 'Title:' no push ntfy, onde
+    # bytes não-ASCII (ex.: ✖) são obs-text e podem ser rejeitados/manglados
+    # por proxies — mataria o canal que justamente cobre "longe da máquina".
+    # O detalhe (com acento/símbolo) vai no corpo, que é UTF-8 e seguro.
+    notify "frotadiag BAD: $HOST" "novos criticos: ${(j:; :)NEW_BAD_KEYS}"
+  fi
   log "=== diag end ok=$N_OK warn=$N_WARN bad=$N_BAD ==="
   (( N_BAD  > 0 )) && return 2
   (( N_WARN > 0 )) && return 1
@@ -706,6 +797,153 @@ cmd_provision() {
   print -- "\n${C_B}Concluído.${C_0} Rode 'diag' de novo para confirmar o inventário."
 }
 
+# =============================================================== FLEET (rollup)
+
+cmd_fleet() {
+  if ! command -v jq >/dev/null 2>&1; then
+    print -- "${C_WARN}▲ fleet precisa do jq — rode './frotadiag.sh provision'${C_0}"
+    return 1
+  fi
+  local base="$ICLOUD_BASE"
+  [[ -d "$base" ]] || base="$STATE_DIR/reports"
+  print -- "${C_B}fleet · rollup${C_0} · $base\n"
+  printf "  %-1s %-16s %-8s %-26s %-9s %s\n" "" "HOST" "VEREDITO" "DISCO" "TM" "VER"
+  printf "  %s\n" "$(printf '─%.0s' {1..78})"
+
+  local now; now="$(date +%s)"
+  typeset -a FMD
+  FMD=("# Fleet · rollup" "" "**Quando:** $TS_ISO · base: \`$base\`" "" \
+       "| | host | veredito | disco | TM | versão | idade |" "|---|---|---|---|---|---|---|")
+  local n=0 any_bad=0 any_warn=0
+  local f host ok warn bad ver disco_v tm_s mtime age_h icon overall age_lbl
+  for f in "$base"/*/latest.json; do
+    [[ -f "$f" ]] || continue
+    [[ "${f:h:t}" == "_fleet" ]] && continue          # nunca agrega a própria saída
+    host="$(jq -r '.host // ""' "$f" 2>/dev/null)" || continue
+    [[ -z "$host" ]] && continue                       # arquivo meio-escrito / inválido
+    ok="$(jq -r '.resumo.ok   // 0'  "$f" 2>/dev/null)"
+    warn="$(jq -r '.resumo.warn // 0' "$f" 2>/dev/null)"
+    bad="$(jq -r '.resumo.bad  // 0'  "$f" 2>/dev/null)"
+    ver="$(jq -r '.script_version // "?"' "$f" 2>/dev/null)"
+    disco_v="$(jq -r '.camadas.disco_uso.value // "n/d"' "$f" 2>/dev/null)"
+    tm_s="$(jq -r '.camadas.tm_idade.status // .camadas.tm_ultimo.status // .camadas.tm_destino.status // "?"' "$f" 2>/dev/null)"
+    mtime="$(stat -f %m "$f" 2>/dev/null || print 0)"
+    age_h=$(( (now - mtime) / 3600 ))
+    if   (( bad  > 0 )); then icon="${C_BAD}✖${C_0}";  overall="BAD";  any_bad=1
+    elif (( warn > 0 )); then icon="${C_WARN}▲${C_0}"; overall="WARN"; any_warn=1
+    else                      icon="${C_OK}●${C_0}";   overall="OK"
+    fi
+    if   (( age_h >= 168 )); then age_lbl="${C_BAD}$(( age_h/24 ))d${C_0}"
+    elif (( age_h >= 48 ));  then age_lbl="${C_WARN}${age_h}h${C_0}"
+    else                          age_lbl="${age_h}h"
+    fi
+    printf "  %s %-16.16s %-8s %-26.26s %-9s %-4s %b\n" "$icon" "$host" "$overall" "$disco_v" "$tm_s" "$ver" "$age_lbl"
+    FMD+=("| $overall | \`$host\` | $overall | $(md_escape "$disco_v") | $tm_s | $ver | ${age_h}h |")
+    (( n++ ))
+  done
+
+  if (( n == 0 )); then
+    print -- "  ${C_DIM}nenhum host com latest.json encontrado${C_0}"
+    return 0
+  fi
+  print -- "\n  ${C_B}$n host(s)${C_0} · ${C_BAD}✖ = crítico${C_0} · idade = desde a última coleta (>48h suspeito de offline)"
+
+  # snapshot Markdown do rollup, fora do glob de hosts
+  local fdir="$base/_fleet"
+  if mkdir -p "$fdir" 2>/dev/null; then
+    printf '%s\n' "${FMD[@]}" > "$fdir/fleet_${TS}.md"
+    cp -f "$fdir/fleet_${TS}.md" "$fdir/latest.md"
+    print -- "  rollup: $fdir/latest.md"
+  fi
+
+  (( any_bad ))  && return 2
+  (( any_warn )) && return 1
+  return 0
+}
+
+# ============================================================= SCHEDULE (launchd)
+
+schedule_status() {
+  if [[ -f "$LAUNCH_PLIST" ]]; then
+    print -- "  ${C_OK}●${C_0} plist: $LAUNCH_PLIST"
+    if launchctl print "gui/$UID/$LAUNCH_LABEL" >/dev/null 2>&1; then
+      print -- "  ${C_OK}●${C_0} job carregado no launchd"
+    else
+      print -- "  ${C_WARN}▲${C_0} plist existe mas o job não está carregado"
+    fi
+  else
+    print -- "  ${C_DIM}sem agendamento instalado${C_0}"
+  fi
+  return 0
+}
+
+schedule_install() {  # schedule_install [hora 0-23]
+  local hour="${1:-9}"
+  if [[ "$hour" != <-> ]] || (( hour < 0 || hour > 23 )); then
+    print -- "hora inválida: $hour (use 0–23)" >&2; return 64
+  fi
+  print -- "${C_B}Agendar diag nightly${C_0}"
+  print -- "  comando: $SCRIPT_PATH diag  ·  todo dia às $(printf '%02d' "$hour"):00"
+  print -- "  plist:   $LAUNCH_PLIST"
+  confirm "instalar o LaunchAgent?" || { print -- "    ${C_DIM}cancelado${C_0}"; return 0; }
+
+  mkdir -p "$HOME/Library/LaunchAgents"
+  cat > "$LAUNCH_PLIST" <<PLIST
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>$LAUNCH_LABEL</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>$SCRIPT_PATH</string>
+    <string>diag</string>
+  </array>
+  <key>StartCalendarInterval</key>
+  <dict><key>Hour</key><integer>$hour</integer><key>Minute</key><integer>0</integer></dict>
+  <key>EnvironmentVariables</key>
+  <dict><key>PATH</key><string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string></dict>
+  <key>StandardOutPath</key><string>$STATE_DIR/launchd.out.log</string>
+  <key>StandardErrorPath</key><string>$STATE_DIR/launchd.err.log</string>
+  <key>RunAtLoad</key><false/>
+</dict>
+</plist>
+PLIST
+
+  launchctl bootout "gui/$UID/$LAUNCH_LABEL" 2>/dev/null   # idempotente: descarrega antes
+  if launchctl bootstrap "gui/$UID" "$LAUNCH_PLIST" 2>/dev/null; then
+    print -- "  ${C_OK}●${C_0} agendado (bootstrap)"
+  elif launchctl load "$LAUNCH_PLIST" 2>/dev/null; then
+    print -- "  ${C_OK}●${C_0} agendado (load — launchctl legado)"
+  else
+    print -- "  ${C_BAD}✖${C_0} plist escrito mas launchctl recusou carregar (ver $STATE_DIR/launchd.err.log)"
+    return 1
+  fi
+  log "schedule install hora=$hour"
+  return 0
+}
+
+schedule_uninstall() {
+  if [[ ! -f "$LAUNCH_PLIST" ]]; then
+    print -- "  ${C_DIM}nada a remover${C_0}"; return 0
+  fi
+  confirm "remover o LaunchAgent e apagar o plist?" || { print -- "    ${C_DIM}cancelado${C_0}"; return 0; }
+  launchctl bootout "gui/$UID/$LAUNCH_LABEL" 2>/dev/null || launchctl unload "$LAUNCH_PLIST" 2>/dev/null
+  rm -f "$LAUNCH_PLIST"
+  print -- "  ${C_OK}●${C_0} removido"
+  log "schedule uninstall"
+  return 0
+}
+
+cmd_schedule() {
+  case "${1:-status}" in
+    install)   shift 2>/dev/null; schedule_install "$@";;
+    uninstall) schedule_uninstall;;
+    status)    schedule_status;;
+    *) print -- "schedule: use install [hora] | uninstall | status" >&2; return 64;;
+  esac
+}
+
 # =============================================================== ALL / MAIN
 
 cmd_all() {
@@ -721,7 +959,9 @@ case "${1:-diag}" in
   disk)      shift 2>/dev/null; cmd_disk "$@";;
   zshrc)     shift 2>/dev/null; cmd_zshrc "$@";;
   provision) shift 2>/dev/null; cmd_provision "$@";;
+  fleet)     shift 2>/dev/null; cmd_fleet "$@";;
+  schedule)  shift 2>/dev/null; cmd_schedule "$@";;
   all)       shift 2>/dev/null; cmd_all "$@";;
-  help|-h|--help) sed -n '2,26p' "$0" | sed 's/^# \{0,2\}//';;
-  *) print -- "subcomando desconhecido: $1 (use: diag | disk | zshrc | provision | all | help)" >&2; exit 64;;
+  help|-h|--help) sed -n '2,28p' "$0" | sed 's/^# \{0,2\}//';;
+  *) print -- "subcomando desconhecido: $1 (use: diag | disk | zshrc | provision | fleet | schedule | all | help)" >&2; exit 64;;
 esac
