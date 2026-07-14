@@ -28,7 +28,14 @@
 
 umask 022
 
-SCRIPT_VERSION="2.7"
+SCRIPT_VERSION="2.7.1"
+# CHANGELOG 2.7→2.7.1 (legibilidade do rollup — desambiguação de host visível):
+#  · cmd_fleet: coluna HOST alargada de 16 → 26 chars (cabeçalho, separador e
+#    linha de dados juntos). Com HOST_ID serial-suffixed da 2.4
+#    (ex.: MacBook-Air-13_C2J64W2HC3), o truncamento em 16 cortava justamente
+#    o sufixo de serial que desambigua hosts clonados — a robustez da 2.4
+#    ficava invisível ("MacBook-Air-13_C"). 26 comporta os HOST_ID reais da
+#    frota por inteiro; tabela cabe em <90 colunas (terminal 100).
 # CHANGELOG 2.4+2.3→2.7 (merge das duas linhas de desenvolvimento):
 #  · Reconciliação de origin/main (2.4, identidade de host robusta) com
 #    feature/fleet-v2.3 (fleet/diff/notify/schedule). Corpo inteiro
@@ -909,8 +916,8 @@ cmd_fleet() {
   local base="$ICLOUD_BASE"
   [[ -d "$base" ]] || base="$STATE_DIR/reports"
   print -- "${C_B}fleet · rollup${C_0} · $base\n"
-  printf "  %-1s %-16s %-8s %-26s %-9s %s\n" "" "HOST" "VEREDITO" "DISCO" "TM" "VER"
-  printf "  %s\n" "$(printf '─%.0s' {1..78})"
+  printf "  %-1s %-26s %-8s %-26s %-9s %s\n" "" "HOST" "VEREDITO" "DISCO" "TM" "VER"
+  printf "  %s\n" "$(printf '─%.0s' {1..88})"
 
   local now; now="$(date +%s)"
   typeset -a FMD
@@ -939,7 +946,7 @@ cmd_fleet() {
     elif (( age_h >= 48 ));  then age_lbl="${C_WARN}${age_h}h${C_0}"
     else                          age_lbl="${age_h}h"
     fi
-    printf "  %s %-16.16s %-8s %-26.26s %-9s %-4s %b\n" "$icon" "$host" "$overall" "$disco_v" "$tm_s" "$ver" "$age_lbl"
+    printf "  %s %-26.26s %-8s %-26.26s %-9s %-4s %b\n" "$icon" "$host" "$overall" "$disco_v" "$tm_s" "$ver" "$age_lbl"
     FMD+=("| $overall | \`$host\` | $overall | $(md_escape "$disco_v") | $tm_s | $ver | ${age_h}h |")
     (( n++ ))
   done
